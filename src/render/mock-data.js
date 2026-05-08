@@ -1,0 +1,150 @@
+import { NODE_TYPE } from './data-model.js';
+
+/**
+ * Mock data fixture for rendering development.
+ * Represents a realistic GSD runtime state with ~5 agents, ~3 subagents, and ~2 milestones.
+ */
+export const MOCK_DATA = {
+  nodes: [
+    // Main agents
+    {
+      id: 'main',
+      name: 'Main Agent',
+      type: NODE_TYPE.AGENT,
+      status: 'active',
+      model: 'deepseek-v4-pro',
+      children: ['scout-1', 'planner-1'],
+      currentAction: 'Executing slice S01',
+      lastAction: 'Dispatched scout agent',
+      phase: 'execution',
+      actions: [
+        { type: 'dispatch-match', description: 'Matched scout task', status: 'success', timestamp: Date.now() - 120000 },
+        { type: 'unit-start', description: 'Started S01/T01', status: 'success', timestamp: Date.now() - 60000 },
+        { type: 'tool-call', description: 'gsd_task_complete', status: 'running', timestamp: Date.now() - 10000 },
+      ],
+    },
+    {
+      id: 'reviewer-1',
+      name: 'Reviewer',
+      type: NODE_TYPE.AGENT,
+      status: 'idle',
+      model: 'qwen3.6-35b',
+      children: [],
+      currentAction: 'Awaiting task',
+      lastAction: 'Completed code review',
+      phase: 'idle',
+      actions: [
+        { type: 'unit-end', description: 'Finished review', status: 'success', timestamp: Date.now() - 300000 },
+      ],
+    },
+    {
+      id: 'worker-1',
+      name: 'Worker',
+      type: NODE_TYPE.AGENT,
+      status: 'active',
+      model: 'deepseek-v4-pro',
+      children: [],
+      currentAction: 'Writing render engine',
+      lastAction: 'Created data-model.js',
+      phase: 'execution',
+      actions: [
+        { type: 'tool-call', description: 'write src/render/data-model.js', status: 'success', timestamp: Date.now() - 30000 },
+        { type: 'tool-call', description: 'bash npm run verify', status: 'running', timestamp: Date.now() - 5000 },
+      ],
+    },
+    {
+      id: 'security-1',
+      name: 'Security',
+      type: NODE_TYPE.AGENT,
+      status: 'waiting',
+      model: 'qwen3.6-35b',
+      children: [],
+      currentAction: 'Queued',
+      lastAction: 'N/A',
+      phase: 'queued',
+      actions: [],
+    },
+    {
+      id: 'tester-1',
+      name: 'Tester',
+      type: NODE_TYPE.AGENT,
+      status: 'idle',
+      model: 'deepseek-v4-flash',
+      children: [],
+      currentAction: 'Standby',
+      lastAction: 'Ran unit tests',
+      phase: 'idle',
+      actions: [
+        { type: 'unit-end', description: 'Tests passed (42/42)', status: 'success', timestamp: Date.now() - 600000 },
+      ],
+    },
+    // Subagents
+    {
+      id: 'scout-1',
+      name: 'Scout',
+      type: NODE_TYPE.SUBAGENT,
+      status: 'completing',
+      model: 'deepseek-v4-flash',
+      parentId: 'main',
+      currentAction: 'Summarizing findings',
+      lastAction: 'Read 8 files',
+      phase: 'completing',
+      actions: [
+        { type: 'tool-call', description: 'read src/render/', status: 'success', timestamp: Date.now() - 90000 },
+      ],
+    },
+    {
+      id: 'planner-1',
+      name: 'Planner',
+      type: NODE_TYPE.SUBAGENT,
+      status: 'active',
+      model: 'qwen3.6-35b',
+      parentId: 'main',
+      currentAction: 'Planning slice tasks',
+      lastAction: 'Read CONTEXT.md',
+      phase: 'planning',
+      actions: [
+        { type: 'unit-start', description: 'Planning S02', status: 'success', timestamp: Date.now() - 45000 },
+      ],
+    },
+    {
+      id: 'worker-2',
+      name: 'Worker (S02)',
+      type: NODE_TYPE.SUBAGENT,
+      status: 'active',
+      model: 'deepseek-v4-pro',
+      parentId: 'main',
+      currentAction: 'Building snapshot writer',
+      lastAction: 'Created extension manifest',
+      phase: 'execution',
+      actions: [],
+    },
+    // Milestones and slices
+    {
+      id: 'm001',
+      name: 'M001: Squid-Map',
+      type: NODE_TYPE.MILESTONE,
+      status: 'active',
+      slicesDone: 0,
+      slicesTotal: 5,
+      currentAction: 'In progress',
+      actions: [],
+    },
+    {
+      id: 's01',
+      name: 'S01: Canvas Engine',
+      type: NODE_TYPE.SLICE,
+      status: 'active',
+      parentId: 'm001',
+      currentAction: 'Task T01 in progress',
+      actions: [],
+    },
+  ],
+  connections: [
+    { from: 'main', to: 'scout-1', status: 'active' },
+    { from: 'main', to: 'planner-1', status: 'active' },
+    { from: 'main', to: 'worker-2', status: 'active' },
+    { from: 'm001', to: 's01', status: 'active' },
+  ],
+  lastUpdate: Date.now(),
+};

@@ -1,0 +1,21 @@
+{
+  "name": "squid-viz",
+  "version": "1.0.0",
+  "description": "Live GSD project visualizer — serves a pre-built static UI that watches .gsd/squid-state/snapshot.json",
+  "type": "module",
+  "bin": {
+    "squid-viz": "./bin/squid-viz"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "vite": "^8.0.11"
+  }
+}

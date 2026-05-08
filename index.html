@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Squid-Map</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0f172a; }
+    #container { width: 100%; height: 100%; position: relative; }
+    #canvas { width: 100%; height: 100%; display: block; }
+  </style>
+  <link rel="stylesheet" href="/src/detail-panel.css">
+</head>
+<body>
+  <div id="container">
+    <canvas id="canvas"></canvas>
+    <div id="detail-panel"></div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+#!/usr/bin/env node
+
+/**
+ * squid-viz — serve the pre-built GSD visualizer and proxy snapshot data.
+ *
+ * Usage:  squid-viz [--port 5177] [--no-open]
+ *
+ * - Serves the bundled static UI from dist/
+ * - Proxies /.gsd/squid-state/snapshot.json from the nearest .gsd/ dir in cwd
+ * - Auto-opens the browser (skip with --no-open)
+ */
+
+import { readFileSync, existsSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execSync } from 'node:child_process';
+import { createServer } from 'node:http';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const DIST = join(__dirname, 'dist');
+
+// ── Args ─────────────────────────────────────────────────────────────────────
+
+function parseArgs(argv) {
+  const args = { port: 5177, open: true };
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--no-open') args.open = false;
+    else if (argv[i] === '--port' && argv[i + 1]) args.port = parseInt(argv[++i], 10);
+  }
+  return args;
+}
+
+const opts = parseArgs(process.argv.slice(2));
+
+// ── Find .gsd/ dir ───────────────────────────────────────────────────────────
+
+function findGsdDir(start) {
+  let dir = start;
+  const root = join(start, '..');
+  while (dir !== root) {
+    const candidate = join(dir, '.gsd');
+    try {
+      if (existsSync(candidate)) return candidate;
+    } catch { /* keep going up */ }
+    dir = dirname(dir);
+  }
+  return null;
+}
+
+const gsdDir = findGsdDir(process.cwd());
+
+// ── HTTP server ──────────────────────────────────────────────────────────────
+
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+};
+
+function serveFile(res, filePath) {
+  try {
+    const content = readFileSync(filePath);
+    const ext = Object.keys(MIME).find(e => filePath.endsWith(e)) || '.bin';
+    res.writeHead(200, { 'Content-Type': MIME[ext] });
+    res.end(content);
+  } catch {
+    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    res.end('Not found');
+  }
+}
+
+const server = createServer((req, res) => {
+  // ── Proxy snapshot.json ──────────────────────────────────────────────
+  if (req.url === '/.gsd/squid-state/snapshot.json' && gsdDir) {
+    const snapPath = join(gsdDir, 'squid-state', 'snapshot.json');
+    if (existsSync(snapPath)) {
+      try {
+        const content = readFileSync(snapPath, 'utf-8');
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+        });
+        res.end(content);
+      } catch {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('Failed to read snapshot');
+      }
+    } else {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('snapshot.json not found');
+    }
+    return;
+  }
+
+  // ── Serve static files from dist/ ────────────────────────────────────
+  let url = req.url?.split('?')[0] || '/';
+  if (url === '/' || url === '/index.html') {
+    serveFile(res, join(DIST, 'index.html'));
+  } else {
+    serveFile(res, join(DIST, url));
+  }
+});
+
+// ── Start ────────────────────────────────────────────────────────────────────
+
+server.listen(opts.port, '127.0.0.1', () => {
+  console.log(`squid-viz running at http://127.0.0.1:${opts.port}`);
+  if (gsdDir) {
+    console.log(`watching: ${gsdDir}/squid-state/snapshot.json`);
+  } else {
+    console.warn('no .gsd/ found — visualizer will show "Connecting to GSD..."');
+  }
+
+  // ── Open browser ─────────────────────────────────────────────────────
+  if (opts.open) {
+    const url = `http://127.0.0.1:${opts.port}`;
+    let cmd = '';
+    switch (process.platform) {
+      case 'darwin': cmd = `open '${url}'`; break;
+      case 'win32': cmd = `start '' '${url}'`; break;
+      default: cmd = `xdg-open '${url}'`;
+    }
+    try { execSync(cmd, { stdio: 'ignore' }); } catch { /* ignore */ }
+  }
+});
+
+// ── Graceful shutdown ────────────────────────────────────────────────────────
+
+process.on('SIGINT', () => {
+  console.log('\nShutting down squid-viz...');
+  server.close(() => process.exit(0));
+});

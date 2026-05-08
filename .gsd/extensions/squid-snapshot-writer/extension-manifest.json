@@ -1,0 +1,10 @@
+{
+  "id": "squid-snapshot-writer",
+  "name": "Squid-Map Snapshot Writer",
+  "version": "1.0.0",
+  "description": "Periodically writes GSD visualizer state to .gsd/squid-state/snapshot.json",
+  "tier": "project",
+  "provides": {
+    "hooks": ["session_start"]
+  }
+}

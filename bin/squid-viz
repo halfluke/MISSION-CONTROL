@@ -17,7 +17,7 @@ import { execSync } from 'node:child_process';
 import { createServer } from 'node:http';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DIST = join(__dirname, 'dist');
+const DIST = join(__dirname, '..', 'dist');
 
 // ── Args ─────────────────────────────────────────────────────────────────────
 

@@ -11,10 +11,8 @@
 import { writeFileSync, renameSync, mkdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { homedir } from 'node:os'
-import { fileURLToPath } from 'node:url'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const projectRoot = join(__dirname, '..', '..', '..')
+const projectRoot = process.cwd()
 
 const SNAP_DIR = join(projectRoot, '.gsd', 'squid-state')
 const SNAP_FILE = join(SNAP_DIR, 'snapshot.json')

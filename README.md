@@ -51,12 +51,11 @@ squid-viz --gsd-dir /path/to/project  # Specify project from anywhere
 
 - **WebSocket** on port 5178: GSD extension pushes data every 5 seconds
 - **HTTP** on port 5177: Serves the Canvas UI
-- **Fallback**: If no WebSocket server, extension writes to disk and browser polls (slower)
 
 ### Connection Indicator (bottom-right corner)
 - 🟢 **Green**: WebSocket connected, real-time updates
-- 🟡 **Yellow**: Polling fallback (squid-viz not running)
-- 🔴 **Red**: Disconnected entirely
+- 🟡 **Yellow**: Connecting to GSD extension
+- 🔴 **Red**: Disconnected
 
 ## Architecture
 

@@ -90,12 +90,157 @@ export class Scene {
 
   /**
    * Update scene data (called when snapshot file changes).
+   *
+   * Diffs old vs new nodes — only re-runs layout when the set of nodes
+   * actually changes. Existing SquidNode instances are updated in-place
+   * so animation state stays smooth.
    * @param {Object} newData - Updated SceneData
    */
   update(newData) {
     this.data = newData;
     this.selectedNodeId = null;
-    this._buildInstances(newData);
+
+    // Build sets of IDs from both old and new data
+    const oldIds = new Set(this.nodes.keys());
+    const newIds = new Set(newData.nodes.map(n => n.id));
+
+    // Track what changed
+    const addedIds = [];
+    const removedIds = [];
+    let nodesChanged = false;
+
+    // Check for added nodes
+    for (const id of newIds) {
+      if (!oldIds.has(id)) {
+        addedIds.push(id);
+        nodesChanged = true;
+      }
+    }
+
+    // Check for removed nodes
+    for (const id of oldIds) {
+      if (!newIds.has(id)) {
+        removedIds.push(id);
+        nodesChanged = true;
+      }
+    }
+
+    // Calculate stable IDs: nodes that existed in both old and new data
+    const stableIds = [];
+    for (const id of oldIds) {
+      if (newIds.has(id)) {
+        stableIds.push(id);
+      }
+    }
+
+    if (nodesChanged) {
+      // Some nodes added/removed — rebuild but preserve stable positions
+      this._buildInstancesWithPreservedPositions(newData);
+    } else {
+      // Same nodes — update in-place so animation stays smooth
+      this._updateInstances(newData, stableIds);
+    }
+  }
+
+  /**
+   * Build instances but preserve positions of stable nodes.
+   * Only new nodes get layout positions assigned.
+   * @param {Object} newData - Updated SceneData
+   */
+  _buildInstancesWithPreservedPositions(newData) {
+    // Build a map of existing positions to preserve BEFORE clearing
+    const oldPositions = new Map();
+    this.nodes.forEach((squid, id) => {
+      oldPositions.set(id, { x: squid.data.x, y: squid.data.y });
+    });
+
+    // Now clear for rebuild
+    this.nodes.clear();
+    this.tentacles = [];
+
+    const nodes = newData.nodes;
+    const connections = newData.connections || [];
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+
+    // Compute layout for all nodes (layout will assign new positions)
+    if (currentLayoutMode === LAYOUT_MODE.LAYERED) {
+      computeLayeredLayout(nodes, connections, w, h);
+    } else {
+      computeLayout(nodes, connections, w, h);
+    }
+
+    // For stable nodes, restore their old positions instead of using layout's random positions
+    newData.nodes.forEach((nodeData) => {
+      const oldPos = oldPositions.get(nodeData.id);
+      if (oldPos) {
+        nodeData.x = oldPos.x;
+        nodeData.y = oldPos.y;
+      }
+    });
+
+    // Build squid instances
+    newData.nodes.forEach((nodeData) => {
+      const state = {
+        selected: nodeData.id === this.selectedNodeId,
+        hoverScale: 1,
+      };
+      const squid = new SquidNode(nodeData, state);
+      this.nodes.set(nodeData.id, squid);
+    });
+
+    // Build tentacle instances
+    connections.forEach((conn) => {
+      this.tentacles.push(new Tentacle(conn));
+    });
+  }
+
+  /**
+   * Update existing SquidNode instances in-place.
+   * Only updates mutable data (status, fields) — preserves position.
+   * @param {Object} newData - Updated SceneData
+   * @param {string[]} [stableIds] - IDs that existed in both old and new (for compatibility)
+   */
+  _updateInstances(newData, stableIds) {
+    const nodes = newData.nodes;
+    const connections = newData.connections || [];
+    const nodeMap = new Map();
+
+    nodes.forEach((nodeData) => {
+      const squid = this.nodes.get(nodeData.id);
+      if (squid) {
+        // Update data in-place, preserving x/y computed by previous layout
+        squid.data = {
+          ...nodeData,
+          // Preserve existing layout position
+          x: squid.data.x,
+          y: squid.data.y,
+        };
+        nodeMap.set(nodeData.id, squid);
+      } else {
+        // Node appeared since last render — shouldn't happen with the diff,
+        // but handle it gracefully by building this one
+        const state = { selected: false, hoverScale: 1 };
+        const squid = new SquidNode(nodeData, state);
+        squid.data.x = squid.data.x || 0;
+        squid.data.y = squid.data.y || 0;
+        this.nodes.set(nodeData.id, squid);
+        nodeMap.set(nodeData.id, squid);
+      }
+    });
+
+    // Remove nodes that disappeared
+    for (const [id, squid] of this.nodes) {
+      if (!nodeMap.has(id)) {
+        this.nodes.delete(id);
+      }
+    }
+
+    // Update tentacles
+    this.tentacles = [];
+    connections.forEach((conn) => {
+      this.tentacles.push(new Tentacle(conn));
+    });
   }
 
   /**
@@ -260,27 +405,9 @@ export class Scene {
 
         this.canvas.width = newW;
         this.canvas.height = newH;
-        if (this.data && this.data.nodes) {
-          const nodes = this.data.nodes;
-          const connections = this.data.connections || [];
-          const w = this.canvas.width;
-          const h = this.canvas.height;
-
-          if (currentLayoutMode === LAYOUT_MODE.LAYERED) {
-            computeLayeredLayout(nodes, connections, w, h);
-          } else {
-            computeLayout(nodes, connections, w, h);
-          }
-
-          // Update positions on existing instances
-          nodes.forEach((nodeData) => {
-            const squid = this.nodes.get(nodeData.id);
-            if (squid) {
-              squid.data.x = nodeData.x;
-              squid.data.y = nodeData.y;
-            }
-          });
-        }
+        // On resize, we keep the current positions - don't re-run layout.
+        // The nodes stay where they are, just the canvas size changes.
+        // This prevents the position jitter on every WebSocket update.
       }, 100);
     };
     this._resizeObserver = new ResizeObserver(resizeHandler);

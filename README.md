@@ -4,32 +4,39 @@ A visualizer for GSD (Get Shit Done) projects — renders your milestones, slice
 
 ![Squid-Map demo](docs/squid-viz-demo.gif)
 
-## Usage
-
-Install globally:
+## Setup
 
 ```bash
-npm install -g squid-viz
+git clone <this-repo>
+cd MISSION-CONTROL
+npm run build
+npm install -g .
 ```
 
-Copy the extension into a GSD project (one-time per project):
+`npm install -g .` handles dependencies and installs the CLI globally — no separate install needed.
+
+## Use on a GSD project
+
+Copy the extension into a project (one-time per project):
 
 ```bash
 cp -r .gsd/extensions/squid-snapshot-writer /path/to/project/.gsd/extensions/
 ```
 
-Run it from the project:
+Run it:
 
 ```bash
 cd /path/to/project
 squid-viz
 ```
 
-Or from anywhere with `--gsd-dir`:
+Or from anywhere:
 
 ```bash
 squid-viz --gsd-dir /path/to/project
 ```
+
+> ⚠️ `squid-viz` looks for `.gsd/` in your current directory (or the `--gsd-dir` path).
 
 ## CLI Options
 
@@ -56,22 +63,6 @@ squid-viz --gsd-dir /path/to/project  # Specify project from anywhere
 - **Frontend**: Native Canvas 2D API (no Pixi/D3/Three.js)
 - **Data**: WebSocket streaming — GSD extension pushes directly
 - **CLI**: Global `squid-viz` serves UI + WebSocket server
-
-## Development
-
-```bash
-git clone <this-repo>
-cd squid-viz
-npm install
-npm run dev    # HMR dev server
-npm run build  # Production static files
-```
-
-To publish updates:
-
-```bash
-npm publish
-```
 
 ## Files
 

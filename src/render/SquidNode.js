@@ -63,13 +63,13 @@ export class SquidNode {
     ctx.translate(x, y);
     ctx.scale(scale, scale);
 
-    // Flashing effect for running nodes
+    // Flashing effect for running nodes - flash with type color
     if (isRunning) {
       const flashSpeed = 8;
       const flash = Math.sin(time * flashSpeed);
       const flashAlpha = 0.3 + flash * 0.25;
-      // Red flash overlay when flashing
-      ctx.fillStyle = `rgba(255, 100, 100, ${Math.max(0, flashAlpha)})`;
+      // Flash overlay using the type color
+      ctx.fillStyle = this._hexToRgba(bodyColor, flashAlpha);
       ctx.beginPath();
       ctx.arc(0, 0, rx * 1.5, 0, Math.PI * 2);
       ctx.fill();
@@ -370,18 +370,20 @@ export class SquidNode {
   }
 
   _bodyColor() {
-    // Use status-based colors: grey for pending, status color for active/error/completing
+    // Use type-based colors: type color for running (active), grey for pending
     // Completed nodes keep their type color (handled in render)
     const status = this.data.status;
     if (status === 'error') return STATUS_COLORS.error;
-    if (status === 'active') return STATUS_COLORS.active;
-    if (status === 'completing') return STATUS_COLORS.completing;
-    // pending/idle/waiting: grey
+    // Running (active) = use type color
+    if (status === 'active') return TYPE_COLORS[this.data.type] || TYPE_COLORS[NODE_TYPE.AGENT];
+    // Completing = type color
+    if (status === 'completing') return TYPE_COLORS[this.data.type] || TYPE_COLORS[NODE_TYPE.AGENT];
+    // Pending/idle/waiting: grey
     if (status === 'pending' || status === 'idle' || status === 'waiting') {
       return STATUS_COLORS.pending;
     }
     // complete/done: use type color (will be applied in render())
-    return null;
+    return TYPE_COLORS[this.data.type] || TYPE_COLORS[NODE_TYPE.AGENT];
   }
 
   _shortenModel(model) {

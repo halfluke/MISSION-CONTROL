@@ -78,16 +78,24 @@ function connectWebSocket() {
   try {
     ws = new WebSocket(WS_URL)
 
+    let hasConnected = false
+
     ws.on('open', () => {
       useWs = true
-      console.log('[squid-snapshot-writer] connected to squid-viz')
+      if (!hasConnected) {
+        console.log('[squid-snapshot-writer] connected to squid-viz')
+        hasConnected = true
+      }
       takeSnapshot() // Send initial data
     })
 
     ws.on('close', () => {
       useWs = false
       failedOnce = true
-      console.log('[squid-snapshot-writer] disconnected from squid-viz')
+      if (hasConnected) {
+        console.log('[squid-snapshot-writer] disconnected from squid-viz')
+        hasConnected = false
+      }
       scheduleReconnect()
     })
 

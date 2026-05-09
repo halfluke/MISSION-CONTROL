@@ -134,9 +134,10 @@ function handleExtensionMessage(data) {
 
 // Track connected extension (GSD)
 wss.on('connection', (ws, req) => {
-  // Determine client type by checking a query param or the origin
-  // Extension connects from same machine (localhost)
-  const isExtension = req.socket.remoteAddress === '127.0.0.1' || req.socket.remoteAddress === '::1';
+  // Distinguish clients via query param — both come from 127.0.0.1
+  const url = new URL(req.url, 'http://localhost');
+  const clientType = url.searchParams.get('client');
+  const isExtension = clientType !== 'browser';
   
   if (isExtension) {
     extensionClients.add(ws);

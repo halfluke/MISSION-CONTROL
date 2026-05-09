@@ -135,7 +135,7 @@ function onWsDisconnect() {
 }
 
 // Initialize WebSocket bridge (will fall back to polling if unavailable)
-const WS_URL = `ws://${window.location.hostname}:5178`;
+const WS_URL = `ws://${window.location.hostname}:5178?client=browser`;
 wsBridge = createWsBridge(WS_URL, onWsData, onWsDisconnect);
 
 // Fallback: activate polling if WebSocket doesn't connect within 2s

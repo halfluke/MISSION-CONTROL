@@ -21,6 +21,7 @@ export function createWsBridge(url, onUpdate, onDisconnect) {
   const MAX_DELAY = 8000;
   let reconnectAttempts = 0;
   let destroyed = false;
+  let hasConnected = false;
 
   function connect() {
     if (destroyed) return;
@@ -30,6 +31,7 @@ export function createWsBridge(url, onUpdate, onDisconnect) {
       ws.onopen = () => {
         reconnectDelay = 1000;
         reconnectAttempts = 0;
+        hasConnected = true;
         console.log('[ws-bridge] connected');
       };
 
@@ -43,16 +45,20 @@ export function createWsBridge(url, onUpdate, onDisconnect) {
       };
 
       ws.onclose = () => {
-        console.log('[ws-bridge] disconnected');
+        if (hasConnected) {
+          console.log('[ws-bridge] disconnected');
+          hasConnected = false; // only log disconnect once per connection cycle
+        }
         if (onDisconnect) onDisconnect();
         scheduleReconnect();
       };
 
-      ws.onerror = (err) => {
-        console.warn('[ws-bridge] error:', err.message);
+      ws.onerror = () => {
+        // error event fires before close — don't log separately,
+        // the connection failure will be caught by onclose/onerror below.
       };
     } catch (err) {
-      console.warn('[ws-bridge] connection failed:', err.message);
+      console.error('[ws-bridge] connection failed:', err.message);
       scheduleReconnect();
     }
   }
@@ -60,7 +66,15 @@ export function createWsBridge(url, onUpdate, onDisconnect) {
   function scheduleReconnect() {
     if (destroyed) return;
     reconnectAttempts++;
-    console.log(`[ws-bridge] reconnecting in ${reconnectDelay}ms (attempt ${reconnectAttempts})`);
+    // Only log on first attempt or when reaching max delay —
+    // suppress the mid-range retries to avoid log spam.
+    if (reconnectAttempts === 1 || reconnectDelay >= MAX_DELAY) {
+      if (hasConnected) {
+        console.warn(`[ws-bridge] server unavailable, reconnecting in ${reconnectDelay}ms (attempt ${reconnectAttempts})`);
+      } else {
+        console.warn(`[ws-bridge] squid-viz not running, will retry in ${reconnectDelay}ms`);
+      }
+    }
     setTimeout(() => {
       reconnectDelay = Math.min(reconnectDelay * 2, MAX_DELAY);
       connect();

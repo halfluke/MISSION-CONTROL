@@ -13,7 +13,7 @@
  * - Auto-opens the browser (skip with --no-open)
  */
 
-import { existsSync, readFileSync, watchFile } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
@@ -195,23 +195,6 @@ wss.on('connection', (ws, req) => {
     });
   }
 });
-
-// Fallback: also watch snapshot file for legacy extension or debugging
-const snapPath = join(gsdDir || '', 'squid-state', 'snapshot.json');
-if (gsdDir && existsSync(join(gsdDir, 'squid-state'))) {
-  watchFile(snapPath, { interval: 200 }, () => {
-    try {
-      const content = readFileSync(snapPath, 'utf-8');
-      // Only use file as fallback if no extension has sent data
-      if (extensionClients.size === 0 && content !== latestSnapshot) {
-        latestSnapshot = content;
-        broadcastToBrowsers(content);
-      }
-    } catch {
-      // Ignore errors
-    }
-  });
-}
 
 wss.on('listening', () => {
   console.log(`WebSocket server running at ws://127.0.0.1:${opts.wsPort}`);

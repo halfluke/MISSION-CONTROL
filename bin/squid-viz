@@ -3,7 +3,9 @@
 /**
  * squid-viz — serve the pre-built GSD visualizer with real-time WebSocket streaming.
  *
- * Usage:  squid-viz [--port 5177] [--ws-port 5178] [--no-open]
+ * Usage:  squid-viz [--port 5177] [--ws-port 5178] [--gsd-dir /path] [--no-open]
+ *
+ * --gsd-dir: Explicitly set the .gsd/ directory (auto-discovers from cwd if omitted)
  *
  * - Serves the bundled static UI from dist/
  * - WebSocket server accepts data from GSD extension (push model)
@@ -12,11 +14,12 @@
  */
 
 import { readFileSync, existsSync, watchFile } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
+import { homedir } from 'node:os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DIST = join(__dirname, '..', 'dist');
@@ -24,13 +27,20 @@ const DIST = join(__dirname, '..', 'dist');
 // ── Args ─────────────────────────────────────────────────────────────────────
 
 function parseArgs(argv) {
-  const args = { port: 5177, wsPort: 5178, open: true };
+  const args = { port: 5177, wsPort: 5178, gsdDir: null, open: true };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--no-open') args.open = false;
     else if (argv[i] === '--port' && argv[i + 1]) args.port = parseInt(argv[++i], 10);
     else if (argv[i] === '--ws-port' && argv[i + 1]) args.wsPort = parseInt(argv[++i], 10);
+    else if (argv[i] === '--gsd-dir' && argv[i + 1]) args.gsdDir = resolvePath(argv[++i]);
   }
   return args;
+}
+
+function resolvePath(p) {
+  if (p.startsWith('/')) return p;
+  if (p.startsWith('~')) return join(homedir(), p.slice(1));
+  return join(process.cwd(), p);
 }
 
 const opts = parseArgs(process.argv.slice(2));
@@ -50,7 +60,7 @@ function findGsdDir(start) {
   return null;
 }
 
-const gsdDir = findGsdDir(process.cwd());
+const gsdDir = opts.gsdDir || findGsdDir(process.cwd());
 
 // ── HTTP server ──────────────────────────────────────────────────────────────
 

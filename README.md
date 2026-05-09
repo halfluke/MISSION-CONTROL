@@ -27,19 +27,30 @@ npm install
 npm run build
 npm link
 
-# Copy extension to global GSD
+# Copy extension to global GSD (works for ALL your GSD projects on this machine)
 cp -r .gsd/extensions/squid-snapshot-writer ~/.gsd/extensions/
 
 # Add to ~/.zshrc
 alias gsd-squid='gsd --extension ~/.gsd/extensions/squid-snapshot-writer/index.js'
 source ~/.zshrc
-
-# Run
-# Terminal 1: gsd-squid       (your GSD project)
-# Terminal 2: squid-viz       (from anywhere)
 ```
 
-That's it. The browser opens automatically at **http://127.0.0.1:5177**.
+### To visualize a project:
+
+You need **two terminals**. Each terminal does a different thing:
+
+**Terminal 1 — Start the UI server** (point it at the project you want to see):
+```bash
+squid-viz --gsd-dir /home/user/your-gsd-project
+```
+
+**Terminal 2 — Start the data push** (MUST be in the same project directory):
+```bash
+cd /home/user/your-gsd-project    # ← this is the project whose data you want
+gsd-squid                          # ← this pushes data from THIS project
+```
+
+> ⚠️ **Both terminals must target the same project.** The `--gsd-dir` flag in Terminal 1 tells `squid-viz` which project to display. The `cd` in Terminal 2 tells `gsd-squid` which project to pull data from. If they don't match, you'll see a different project than expected.
 
 ## How It Works
 

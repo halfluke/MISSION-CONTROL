@@ -13,7 +13,7 @@
  * - Auto-opens the browser (skip with --no-open)
  */
 
-import { readFileSync, existsSync, watchFile } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
@@ -101,28 +101,6 @@ function serveFile(res, filePath) {
 }
 
 const server = createServer((req, res) => {
-  // ── Proxy snapshot.json for fallback ─────────────────────────────────────
-  if (req.url?.split('?')[0] === '/.gsd/squid-state/snapshot.json' && gsdDir) {
-    const snapPath = join(gsdDir, 'squid-state', 'snapshot.json');
-    if (existsSync(snapPath)) {
-      try {
-        const content = readFileSync(snapPath, 'utf-8');
-        res.writeHead(200, {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
-        });
-        res.end(content);
-      } catch {
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
-        res.end('Failed to read snapshot');
-      }
-    } else {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('snapshot.json not found');
-    }
-    return;
-  }
-
   // ── Serve static files from dist/ ──────────────────────────────────────
   let url = req.url?.split('?')[0] || '/';
   if (url === '/' || url === '/index.html') {

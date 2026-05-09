@@ -1,13 +1,11 @@
 /**
  * Squid-Map -- main entry point.
  *
- * Starts with mock data, then watches the GSD snapshot file for live updates.
- * When a snapshot arrives, transitions to live data seamlessly.
+ * Pure WebSocket transport: squid-viz extension pushes snapshots in real time.
+ * No file-based polling. Shows "Connecting to GSD..." until WS data arrives.
  */
 
 import { Scene } from './render/Scene.js';
-import { MOCK_DATA } from './render/mock-data.js';
-import { watchSnapshotFile } from './data/file-watcher.js';
 import { createWsBridge } from './data/ws-bridge.js';
 import { toggleLayoutMode, LAYOUT_MODE } from './render/layout.js';
 
@@ -50,16 +48,7 @@ document.body.appendChild(overlay);
 // Scene init — start empty, render after first WebSocket data
 const scene = new Scene(canvas, { nodes: [], connections: [] });
 let isLiveData = false;
-let watcher = null;
-let pollingActive = false;
-let errorTimeout = null;
 let wsBridge = null;
-
-// Error overlay for corrupt snapshot data
-const errorOverlay = document.createElement('div');
-errorOverlay.id = 'error-overlay';
-errorOverlay.style.cssText = 'position:fixed;top:16px;right:16px;background:rgba(248,113,113,0.15);border:1px solid rgba(248,113,113,0.4);border-radius:10px;padding:12px 18px;font-family:system-ui,sans-serif;color:#f87171;font-size:13px;z-index:200;display:none;max-width:320px;backdrop-filter:blur(8px);';
-document.body.appendChild(errorOverlay);
 
 // Status indicator for connection state
 const statusIndicator = document.createElement('div');
@@ -69,92 +58,32 @@ document.body.appendChild(statusIndicator);
 
 function updateStatusIndicator(state) {
   if (state === 'connected') statusIndicator.style.background = '#4ade80'; // green
-  else if (state === 'polling') statusIndicator.style.background = '#fbbf24'; // yellow
+  else if (state === 'connecting') statusIndicator.style.background = '#fbbf24'; // yellow
   else statusIndicator.style.background = '#f87171'; // red
 }
 
-function showErrorOverlay(message) {
-  errorOverlay.textContent = message;
-  errorOverlay.style.display = 'block';
-  if (errorTimeout) clearTimeout(errorTimeout);
-  errorTimeout = setTimeout(() => {
-    errorOverlay.style.display = 'none';
-  }, 8000);
-}
-
-function onSnapshotUpdate(sceneData) {
+function onWsData(sceneData) {
   if (!isLiveData) {
     isLiveData = true;
     overlay.style.opacity = '0';
     setTimeout(() => overlay.remove(), 600);
     console.log('[Squid-Map] Switched to live data');
+    updateStatusIndicator('connected');
   }
   scene.update(sceneData);
-  // Clear error overlay on successful parse
-  errorOverlay.style.display = 'none';
-  if (errorTimeout) clearTimeout(errorTimeout);
 }
 
-// Polling fallback for when WebSocket disconnects
-function activatePolling() {
-  if (pollingActive) return;
-  pollingActive = true;
-  // Use existing file-watcher as fallback
-  watcher = watchSnapshotFile(
-    new URL('/.gsd/squid-state/snapshot.json', location.origin).pathname,
-    onSnapshotUpdate,
-    {
-      onMissing: () => {
-        // Snapshot file doesn't exist yet — normal during dev before GSD writes it
-        if (!isLiveData) {
-          label.textContent = 'Waiting for GSD snapshot...';
-        }
-      },
-      onError: showErrorOverlay,
-    }
-  );
-  console.log('[main] polling fallback active');
-  updateStatusIndicator('polling');
-}
-
-function deactivatePolling() {
-  if (!pollingActive) return;
-  if (watcher) {
-    watcher.destroy();
-    watcher = null;
-  }
-  pollingActive = false;
-  console.log('[main] polling deactivated');
-}
-
-// Activate polling immediately — it's the only transport that picks up
-// file-based writes from GSD extensions. WS may succeed (connect to Vite's
-// server) without ever receiving data if the extension writes only to file
-// or if the WS project-matching rejects the connection.
-activatePolling();
-
-// WebSocket data handler — switches from polling to WS, updates status
-function onWsData(data) {
-  onSnapshotUpdate(data);
-  deactivatePolling();
-  updateStatusIndicator('connected');
-}
-
-// WebSocket disconnect handler — falls back to polling
+// WebSocket data handler — clean disconnect reconnection
 function onWsDisconnect() {
-  activatePolling();
+  if (isLiveData) {
+    console.warn('[Squid-Map] WS disconnected while live — reconnecting');
+    updateStatusIndicator('connecting');
+  }
 }
 
-// Initialize WebSocket bridge (will fall back to polling if unavailable)
 const WS_URL = `ws://${window.location.hostname}:5178?client=browser`;
 wsBridge = createWsBridge(WS_URL, onWsData, onWsDisconnect);
-
-// Fallback: activate polling if WebSocket doesn't connect within 2s
-setTimeout(() => {
-  if (!wsBridge.isConnected()) {
-    activatePolling();
-  }
-}, 2000);
+updateStatusIndicator('connecting');
 
 // Canvas sizing
 function resize() {

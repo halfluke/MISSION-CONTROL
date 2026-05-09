@@ -1,11 +1,14 @@
 /**
  * WebSocket Bridge — client-side real-time transport for snapshot updates.
  *
- * Replaces polling with WebSocket push. Falls back to polling on disconnect.
- * Handles reconnection with exponential backoff.
+ * Two-layer fix:
+ * 1. Initial delay before first connect so the extension is ready first.
+ * 2. Robust reconnection with forced re-render on reconnection.
  */
 
 import { parseSnapshotText } from './gds-snapshot-adapter.js';
+
+const INITIAL_CONNECT_DELAY = 2000; // 2s delay before first connect
 
 /**
  * Create a WebSocket bridge that receives real-time snapshot updates.
@@ -22,6 +25,8 @@ export function createWsBridge(url, onUpdate, onDisconnect) {
   let reconnectAttempts = 0;
   let destroyed = false;
   let hasConnected = false;
+  let hasRendered = false; // track if we ever rendered live data
+  let lastRenderedVersion = 0; // track latest snapshot version to detect fresh data
 
   function connect() {
     if (destroyed) return;
@@ -38,16 +43,25 @@ export function createWsBridge(url, onUpdate, onDisconnect) {
       ws.onmessage = (event) => {
         const sceneData = parseSnapshotText(event.data);
         if (sceneData) {
+          // Track version to detect new data
+          if (sceneData.version > lastRenderedVersion) {
+            lastRenderedVersion = sceneData.version;
+          }
+          // Always call onUpdate to force re-render with latest data
           onUpdate(sceneData);
+          if (!hasRendered) {
+            hasRendered = true;
+            console.log('[ws-bridge] first live data received');
+          }
         } else {
           console.warn('[ws-bridge] Parse failed for ws message');
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         if (hasConnected) {
-          console.log('[ws-bridge] disconnected');
-          hasConnected = false; // only log disconnect once per connection cycle
+          console.log(`[ws-bridge] disconnected (code: ${event.code})`);
+          hasConnected = false;
         }
         if (onDisconnect) onDisconnect();
         scheduleReconnect();
@@ -81,7 +95,13 @@ export function createWsBridge(url, onUpdate, onDisconnect) {
     }, reconnectDelay);
   }
 
-  connect();
+  // Initial delay: wait for the extension to be ready before connecting
+  setTimeout(() => {
+    if (!destroyed) {
+      console.log('[ws-bridge] starting connection...');
+      connect();
+    }
+  }, INITIAL_CONNECT_DELAY);
 
   return {
     destroy() {

@@ -4,46 +4,41 @@ A visualizer for GSD (Get Shit Done) projects — renders your milestones, slice
 
 ![Squid-Map demo](docs/squid-viz-demo.gif)
 
-## Quick Start (2 minutes)
+## Usage
 
-**Step 1: Install the visualizer**
+Install globally:
+
 ```bash
-git clone <this-repo>
-cd <repo>
-npm install
-npm run dev    # HTTP on 5177, WebSocket on 5178
+npm install -g squid-viz
 ```
 
-**Step 2: Add the extension to each GSD project you want to visualize**
+Copy the extension into a GSD project (one-time per project):
+
 ```bash
-# Copy the extension into the target project's .gsd/extensions/ directory
-# This creates .gsd/extensions/squid-snapshot-writer/ in the target project
-cp -r .gsd/extensions/squid-snapshot-writer /path/to/other-project/.gsd/extensions/
+cp -r .gsd/extensions/squid-snapshot-writer /path/to/project/.gsd/extensions/
 ```
 
-**Step 3: Visualize that project**
+Run it from the project:
 
-Either `cd` into the project first:
 ```bash
-cd /path/to/other-project
-
-# Terminal 1: Start the visualizer (auto-discovers this project's .gsd/)
+cd /path/to/project
 squid-viz
-
-# Terminal 2: Start GSD with the extension (from the same project)
-gsd --extension .gsd/extensions/squid-snapshot-writer/index.js
 ```
 
-Or use `--gsd-dir` to specify the project without `cd`:
+Or from anywhere with `--gsd-dir`:
+
 ```bash
-squid-viz --gsd-dir /path/to/other-project
-
-# Then in another terminal (from the target project):
-cd /path/to/other-project
-gsd --extension .gsd/extensions/squid-snapshot-writer/index.js
+squid-viz --gsd-dir /path/to/project
 ```
 
-> ⚠️ **Pointing at a project.** `squid-viz` looks for `.gsd/` in your current working directory. If your project is elsewhere, either `cd` into it first or use `--gsd-dir /path/to/your-project`.
+## CLI Options
+
+```bash
+squid-viz           # Default (ports 5177/5178, auto-opens browser)
+squid-viz --port 3000 --ws-port 3001  # Custom ports
+squid-viz --no-open  # Don't auto-open browser
+squid-viz --gsd-dir /path/to/project  # Specify project from anywhere
+```
 
 ## How It Works
 
@@ -62,19 +57,20 @@ gsd --extension .gsd/extensions/squid-snapshot-writer/index.js
 - **Data**: WebSocket streaming — GSD extension pushes directly
 - **CLI**: Global `squid-viz` serves UI + WebSocket server
 
-## Commands
-
-```bash
-squid-viz           # Default (ports 5177/5178)
-squid-viz --port 3000 --ws-port 3001  # Custom ports
-squid-viz --no-open  # Don't auto-open browser
-```
-
 ## Development
 
 ```bash
-npm run dev    # HMR + WebSocket
-npm run build  # Production build
+git clone <this-repo>
+cd squid-viz
+npm install
+npm run dev    # HMR dev server
+npm run build  # Production static files
+```
+
+To publish updates:
+
+```bash
+npm publish
 ```
 
 ## Files

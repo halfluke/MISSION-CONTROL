@@ -23,6 +23,7 @@ const SNAP_TMP = join(SNAP_DIR, 'snapshot.json.tmp')
 let ws = null
 let reconnectTimeout = null
 let useWs = true // true = WS mode, false = file mode
+let failedOnce = false // suppress repeated error spam after first failure
 
 async function takeSnapshot() {
   try {
@@ -85,16 +86,23 @@ function connectWebSocket() {
 
     ws.on('close', () => {
       useWs = false
+      failedOnce = true
       console.log('[squid-snapshot-writer] disconnected from squid-viz')
       scheduleReconnect()
     })
 
     ws.on('error', (err) => {
       useWs = false
-      console.log('[squid-snapshot-writer] WebSocket error:', err.message)
+      if (!failedOnce) {
+        failedOnce = true
+        console.log('[squid-snapshot-writer] WebSocket error:', err.message)
+      }
     })
   } catch (err) {
-    console.log('[squid-snapshot-writer] could not connect to squid-viz, using file mode')
+    if (!failedOnce) {
+      failedOnce = true
+      console.log('[squid-snapshot-writer] could not connect to squid-viz, using file mode')
+    }
     useWs = false
     scheduleReconnect()
   }
@@ -107,7 +115,9 @@ function scheduleReconnect() {
   if (reconnectTimeout) clearTimeout(reconnectTimeout)
   reconnectTimeout = setTimeout(() => {
     reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY)
-    console.log(`[squid-snapshot-writer] reconnecting in ${reconnectDelay}ms`)
+    if (!failedOnce) {
+      console.log(`[squid-snapshot-writer] reconnecting in ${reconnectDelay}ms`)
+    }
     connectWebSocket()
   }, reconnectDelay)
 }

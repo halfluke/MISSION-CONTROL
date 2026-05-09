@@ -53,22 +53,9 @@ const gsdDir = opts.gsdDir
     ? join(process.cwd(), '.gsd')
     : null;
 
-// ── Validate .gsd/ is a real project with squid-state ──────────────────────
+// ── Validate .gsd/ directory exists ────────────────────────────────────────
 
-if (gsdDir) {
-  const squidStateDir = join(gsdDir, 'squid-state');
-  if (!existsSync(squidStateDir)) {
-    console.error('');
-    console.error('Error: .gsd/ at', gsdDir, 'has no squid-state/ directory');
-    console.error('This is likely not a GSD project directory.');
-    console.error('Run squid-viz from inside a GSD project directory:');
-    console.error('  cd /path/to/your-gsd-project');
-    console.error('  squid-viz');
-    console.error('');
-    process.exit(1);
-  }
-  console.log(`.gsd/ found at: ${gsdDir}`);
-} else {
+if (!gsdDir) {
   console.error('');
   console.error('Error: no .gsd/ directory found in', process.cwd());
   console.error('Run squid-viz from inside a GSD project directory, or use:');
@@ -76,6 +63,7 @@ if (gsdDir) {
   console.error('');
   process.exit(1);
 }
+console.log(`.gsd/ found at: ${gsdDir}`);
 
 // ── HTTP server ──────────────────────────────────────────────────────────────
 

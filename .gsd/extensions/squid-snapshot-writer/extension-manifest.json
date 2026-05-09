@@ -2,7 +2,7 @@
   "id": "squid-snapshot-writer",
   "name": "Squid-Map Snapshot Writer",
   "version": "1.0.0",
-  "description": "Periodically writes GSD visualizer state to .gsd/squid-state/snapshot.json",
+  "description": "Pushes GSD visualizer state to squid-viz via WebSocket (ws://127.0.0.1:5178)",
   "tier": "project",
   "provides": {
     "hooks": ["session_start"]

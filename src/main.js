@@ -127,6 +127,12 @@ function deactivatePolling() {
   console.log('[main] polling deactivated');
 }
 
+// Activate polling immediately — it's the only transport that picks up
+// file-based writes from GSD extensions. WS may succeed (connect to Vite's
+// server) without ever receiving data if the extension writes only to file
+// or if the WS project-matching rejects the connection.
+activatePolling();
+
 // WebSocket data handler — switches from polling to WS, updates status
 function onWsData(data) {
   onSnapshotUpdate(data);

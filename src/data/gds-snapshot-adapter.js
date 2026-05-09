@@ -22,7 +22,7 @@ import { NODE_TYPE } from '../render/data-model.js';
 
 const GSD_STATUS_MAP = {
   active: 'active',
-  complete: 'completing',
+  complete: 'complete',
   pending: 'pending',
 };
 
@@ -32,13 +32,13 @@ function mapMsStatus(status) {
 
 function mapSliceStatus(done, active) {
   if (active) return 'active';
-  if (done) return 'completing';
+  if (done) return 'complete';
   return 'pending';
 }
 
 function mapTaskStatus(done, active) {
   if (active) return 'active';
-  if (done) return 'completing';
+  if (done) return 'complete';
   return 'pending';
 }
 

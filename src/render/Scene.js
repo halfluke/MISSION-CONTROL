@@ -26,6 +26,9 @@ export class Scene {
     this.selectedNodeId = null;
     this.startTime = performance.now();
 
+    // Camera state for zoom/pan
+    this.camera = { x: 0, y: 0, scale: 1 };
+
     this._resizeObserver = null;
     this._rafId = null;
     this._lastFrameTime = 0;
@@ -36,6 +39,53 @@ export class Scene {
     this._buildInstances(data);
     this._setupResize();
     this._setupInteraction();
+    this._setupCameraHandlers();
+  }
+
+  // ── Camera transform helpers ───────────────────────────────────────────────
+
+  /**
+   * Zoom by a factor (e.g., 0.9 for zoom in, 1.1 for zoom out).
+   * @param {number} delta - Zoom factor
+   */
+  zoom(delta) {
+    this.camera.scale = Math.min(5, Math.max(0.2, this.camera.scale * delta));
+  }
+
+  /**
+   * Pan the camera by delta.
+   * @param {number} dx
+   * @param {number} dy
+   */
+  pan(dx, dy) {
+    this.camera.x += dx;
+    this.camera.y += dy;
+  }
+
+  /**
+   * Convert world coords to screen coords.
+   * @param {number} wx - World X
+   * @param {number} wy - World Y
+   * @returns {{x: number, y: number}}
+   */
+  worldToScreen(wx, wy) {
+    return {
+      x: wx * this.camera.scale + this.camera.x,
+      y: wy * this.camera.scale + this.camera.y,
+    };
+  }
+
+  /**
+   * Convert screen coords to world coords.
+   * @param {number} sx - Screen X
+   * @param {number} sy - Screen Y
+   * @returns {{x: number, y: number}}
+   */
+  screenToWorld(sx, sy) {
+    return {
+      x: (sx - this.camera.x) / this.camera.scale,
+      y: (sy - this.camera.y) / this.camera.scale,
+    };
   }
 
   /**
@@ -133,6 +183,11 @@ export class Scene {
     // Draw subtle grid
     this._drawGrid(ctx, w, h);
 
+    // Apply camera transform
+    ctx.save();
+    ctx.translate(this.camera.x, this.camera.y);
+    ctx.scale(this.camera.scale, this.camera.scale);
+
     // Draw tentacles first (behind squids)
     this.tentacles.forEach((tentacle) => {
       const fromNode = this.nodes.get(tentacle.data.from);
@@ -149,7 +204,9 @@ export class Scene {
       squid.render(ctx, time);
     });
 
-    // Debug overlay
+    ctx.restore();
+
+    // Debug overlay (drawn AFTER restore - screen-space)
     this._drawDebug(ctx, w, h);
   }
 
@@ -247,19 +304,101 @@ export class Scene {
   }
 
   /**
+   * Set up camera handlers (zoom/pan).
+   */
+  _setupCameraHandlers() {
+    // Mouse wheel zoom
+    this.canvas.addEventListener('wheel', (e) => this._handleWheel(e), { passive: false });
+
+    // Pointer handlers for panning
+    this.canvas.addEventListener('pointerdown', (e) => this._handlePointerDown(e));
+    this.canvas.addEventListener('pointermove', (e) => this._handlePointerMove(e));
+    this.canvas.addEventListener('pointerup', (e) => this._handlePointerUp(e));
+    this.canvas.addEventListener('pointerleave', (e) => this._handlePointerUp(e));
+  }
+
+  /**
+   * Handle mouse wheel for cursor-centered zoom.
+   */
+  _handleWheel(e) {
+    e.preventDefault();
+    const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9; // scroll down = zoom out
+
+    // Get world coords under cursor BEFORE zoom
+    const worldX = (e.offsetX - this.camera.x) / this.camera.scale;
+    const worldY = (e.offsetY - this.camera.y) / this.camera.scale;
+
+    // Apply zoom with clamping
+    const newScale = Math.min(5, Math.max(0.2, this.camera.scale * zoomFactor));
+
+    // Adjust camera so the point under cursor stays fixed
+    this.camera.x = e.offsetX - worldX * newScale;
+    this.camera.y = e.offsetY - worldY * newScale;
+    this.camera.scale = newScale;
+
+    console.log(`[Squid-Map] Zoom ${newScale.toFixed(2)}x`);
+    this.needsRender = true;
+  }
+
+  /**
+   * Check if event is a pan gesture (Shift + left mouse drag).
+   */
+  _isPanning(e) {
+    return e.shiftKey && e.buttons === 1;
+  }
+
+  /**
+   * Handle pointer down - start pan if shift is held.
+   */
+  _handlePointerDown(e) {
+    if (this._isPanning(e)) {
+      this._panStart = { x: e.clientX, y: e.clientY, cx: this.camera.x, cy: this.camera.y };
+      e.preventDefault();
+      this.canvas.style.cursor = 'grabbing';
+    }
+  }
+
+  /**
+   * Handle pointer move - pan if dragging.
+   */
+  _handlePointerMove(e) {
+    if (this._panStart) {
+      const dx = e.clientX - this._panStart.x;
+      const dy = e.clientY - this._panStart.y;
+      this.camera.x = this._panStart.cx + dx;
+      this.camera.y = this._panStart.cy + dy;
+      this.needsRender = true;
+    }
+  }
+
+  /**
+   * Handle pointer up - end pan.
+   */
+  _handlePointerUp(e) {
+    if (this._panStart) {
+      this._panStart = null;
+      this.canvas.style.cursor = 'default';
+      console.log('[Squid-Map] Pan done');
+    }
+  }
+
+  /**
    * Handle click at canvas coordinates.
    * @param {number} x
    * @param {number} y
    * @returns {Object|null} The clicked node data, or null
    */
   handleClick(x, y) {
+    // Convert screen coords to world coords for hit-testing
+    const world = this.screenToWorld(x, y);
+
     let clicked = null;
 
     // Reverse order for top-most first
     const nodeIds = Array.from(this.nodes.keys()).reverse();
     for (const id of nodeIds) {
       const squid = this.nodes.get(id);
-      if (squid.hitTest(x, y)) {
+      if (squid.hitTest(world.x, world.y)) {
         clicked = id;
         break;
       }
@@ -283,9 +422,12 @@ export class Scene {
    * @param {number} y
    */
   handleHover(x, y) {
+    // Convert screen coords to world coords for hit-testing
+    const world = this.screenToWorld(x, y);
+
     let hovering = false;
     this.nodes.forEach((squid) => {
-      const isHit = squid.hitTest(x, y);
+      const isHit = squid.hitTest(world.x, world.y);
       squid.state.hoverScale = isHit ? 1.08 : 1;
       if (isHit) hovering = true;
     });

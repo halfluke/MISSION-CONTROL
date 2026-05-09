@@ -14,13 +14,16 @@ export const NODE_TYPE = {
 };
 
 // Agent statuses mapped to colors
+// Color scheme: pending=grey, running=flashing, completed=keep type color
 export const STATUS_COLORS = {
-  active: '#4ade80',    // green
-  idle: '#60a5fa',       // blue
-  error: '#f87171',      // red
-  waiting: '#9ca3af',    // gray
-  completing: '#fbbf24', // amber
-  pending: '#6b7280',    // gray-500
+  active: '#4ade80',     // green (running - will flash)
+  idle: '#6b7280',       // grey (pending/not started)
+  waiting: '#6b7280',    // grey (pending/not started)
+  pending: '#6b7280',   // grey (pending/not started)
+  error: '#f87171',     // red
+  completing: '#fbbf24', // amber (keep - close to done)
+  complete: '#4ade80',   // green (completed - use type color)
+  done: '#4ade80',       // green (completed - use type color)
 };
 
 // Type-based base colors — milestones, slices, and tasks get distinct palettes

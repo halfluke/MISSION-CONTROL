@@ -8,6 +8,7 @@
 import { Scene } from './render/Scene.js';
 import { MOCK_DATA } from './render/mock-data.js';
 import { watchSnapshotFile } from './data/file-watcher.js';
+import { createWsBridge } from './data/ws-bridge.js';
 import { toggleLayoutMode, LAYOUT_MODE } from './render/layout.js';
 
 // Hex to RGBA helper for inline panel styles
@@ -46,17 +47,31 @@ overlay.appendChild(spinner);
 overlay.appendChild(label);
 document.body.appendChild(overlay);
 
-// Scene init
-const scene = new Scene(canvas, MOCK_DATA);
+// Scene init — start empty, render after first WebSocket data
+const scene = new Scene(canvas, { nodes: [], connections: [] });
 let isLiveData = false;
 let watcher = null;
+let pollingActive = false;
 let errorTimeout = null;
+let wsBridge = null;
 
 // Error overlay for corrupt snapshot data
 const errorOverlay = document.createElement('div');
 errorOverlay.id = 'error-overlay';
 errorOverlay.style.cssText = 'position:fixed;top:16px;right:16px;background:rgba(248,113,113,0.15);border:1px solid rgba(248,113,113,0.4);border-radius:10px;padding:12px 18px;font-family:system-ui,sans-serif;color:#f87171;font-size:13px;z-index:200;display:none;max-width:320px;backdrop-filter:blur(8px);';
 document.body.appendChild(errorOverlay);
+
+// Status indicator for connection state
+const statusIndicator = document.createElement('div');
+statusIndicator.id = 'ws-status';
+statusIndicator.style.cssText = 'position:fixed;bottom:16px;right:16px;width:12px;height:12px;border-radius:50%;z-index:300;transition:background 0.3s;background:#9ca3af;';
+document.body.appendChild(statusIndicator);
+
+function updateStatusIndicator(state) {
+  if (state === 'connected') statusIndicator.style.background = '#4ade80'; // green
+  else if (state === 'polling') statusIndicator.style.background = '#fbbf24'; // yellow
+  else statusIndicator.style.background = '#f87171'; // red
+}
 
 function showErrorOverlay(message) {
   errorOverlay.textContent = message;
@@ -80,14 +95,56 @@ function onSnapshotUpdate(sceneData) {
   if (errorTimeout) clearTimeout(errorTimeout);
 }
 
-watcher = watchSnapshotFile(
-  new URL('/.gsd/squid-state/snapshot.json', location.origin).pathname,
-  onSnapshotUpdate,
-  {
-    onMissing: () => {},
-    onError: showErrorOverlay,
+// Polling fallback for when WebSocket disconnects
+function activatePolling() {
+  if (pollingActive) return;
+  pollingActive = true;
+  // Use existing file-watcher as fallback
+  watcher = watchSnapshotFile(
+    new URL('/.gsd/squid-state/snapshot.json', location.origin).pathname,
+    onSnapshotUpdate,
+    {
+      onMissing: () => {},
+      onError: showErrorOverlay,
+    }
+  );
+  console.log('[main] polling fallback active');
+  updateStatusIndicator('polling');
+}
+
+function deactivatePolling() {
+  if (!pollingActive) return;
+  if (watcher) {
+    watcher.destroy();
+    watcher = null;
   }
-);
+  pollingActive = false;
+  console.log('[main] polling deactivated');
+}
+
+// WebSocket data handler — switches from polling to WS, updates status
+function onWsData(data) {
+  onSnapshotUpdate(data);
+  deactivatePolling();
+  updateStatusIndicator('connected');
+}
+
+// WebSocket disconnect handler — falls back to polling
+function onWsDisconnect() {
+  activatePolling();
+}
+
+// Initialize WebSocket bridge (will fall back to polling if unavailable)
+const WS_URL = `ws://${window.location.hostname}:5178`;
+wsBridge = createWsBridge(WS_URL, onWsData, onWsDisconnect);
+
+// Fallback: activate polling if WebSocket doesn't connect within 2s
+setTimeout(() => {
+  if (!wsBridge.isConnected()) {
+    activatePolling();
+    updateStatusIndicator('disconnected');
+  }
+}, 2000);
 
 // Canvas sizing
 function resize() {

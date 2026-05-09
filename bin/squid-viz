@@ -13,7 +13,7 @@
  * - Auto-opens the browser (skip with --no-open)
  */
 
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, watchFile } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
@@ -242,7 +242,11 @@ server.listen(opts.port, '127.0.0.1', () => {
 
 process.on('SIGINT', () => {
   console.log('\nShutting down squid-viz...');
+  // Force-close all WebSocket connections so wss.close() doesn't hang
+  wss.clients.forEach(client => client.terminate());
   wss.close(() => {
     server.close(() => process.exit(0));
   });
+  // Safety: exit after 2s even if close callbacks hang
+  setTimeout(() => process.exit(1), 2000);
 });

@@ -47,14 +47,11 @@ const opts = parseArgs(process.argv.slice(2));
 
 // ── Find .gsd/ dir ───────────────────────────────────────────────────────────
 
-function findGsdDir(start) {
-  // Only look in cwd — never walk up the tree.
-  // This prevents accidentally picking up .gsd/ from a parent project.
-  const candidate = join(start, '.gsd');
-  return existsSync(candidate) ? candidate : null;
-}
-
-const gsdDir = opts.gsdDir || findGsdDir(process.cwd());
+const gsdDir = opts.gsdDir
+  ? resolve(opts.gsdDir)
+  : existsSync(join(process.cwd(), '.gsd'))
+    ? join(process.cwd(), '.gsd')
+    : null;
 
 // ── Validate .gsd/ is a real project with squid-state ──────────────────────
 

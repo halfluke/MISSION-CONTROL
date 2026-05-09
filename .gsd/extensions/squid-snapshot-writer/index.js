@@ -15,7 +15,7 @@ import { WebSocket } from 'ws'
 
 const projectRoot = process.cwd()
 
-const WS_URL = 'ws://127.0.0.1:5178'
+const WS_URL = 'ws://127.0.0.1:5178?project=' + encodeURIComponent(projectRoot)
 const SNAP_DIR = join(projectRoot, '.gsd', 'squid-state')
 const SNAP_FILE = join(SNAP_DIR, 'snapshot.json')
 const SNAP_TMP = join(SNAP_DIR, 'snapshot.json.tmp')

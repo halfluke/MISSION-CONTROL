@@ -48,19 +48,37 @@ const opts = parseArgs(process.argv.slice(2));
 // ── Find .gsd/ dir ───────────────────────────────────────────────────────────
 
 function findGsdDir(start) {
-  let dir = start;
-  const root = join(start, '..');
-  while (dir !== root) {
-    const candidate = join(dir, '.gsd');
-    try {
-      if (existsSync(candidate)) return candidate;
-    } catch { /* keep going up */ }
-    dir = dirname(dir);
-  }
-  return null;
+  // Only look in cwd — never walk up the tree.
+  // This prevents accidentally picking up .gsd/ from a parent project.
+  const candidate = join(start, '.gsd');
+  return existsSync(candidate) ? candidate : null;
 }
 
 const gsdDir = opts.gsdDir || findGsdDir(process.cwd());
+
+// ── Validate .gsd/ is a real project with squid-state ──────────────────────
+
+if (gsdDir) {
+  const squidStateDir = join(gsdDir, 'squid-state');
+  if (!existsSync(squidStateDir)) {
+    console.error('');
+    console.error('Error: .gsd/ at', gsdDir, 'has no squid-state/ directory');
+    console.error('This is likely not a GSD project directory.');
+    console.error('Run squid-viz from inside a GSD project directory:');
+    console.error('  cd /path/to/your-gsd-project');
+    console.error('  squid-viz');
+    console.error('');
+    process.exit(1);
+  }
+  console.log(`.gsd/ found at: ${gsdDir}`);
+} else {
+  console.error('');
+  console.error('Error: no .gsd/ directory found in', process.cwd());
+  console.error('Run squid-viz from inside a GSD project directory, or use:');
+  console.error('  squid-viz --gsd-dir /path/to/your-gsd-project');
+  console.error('');
+  process.exit(1);
+}
 
 // ── HTTP server ──────────────────────────────────────────────────────────────
 
@@ -147,11 +165,25 @@ wss.on('connection', (ws, req) => {
   // Distinguish clients via query param — both come from 127.0.0.1
   const url = new URL(req.url, 'http://localhost');
   const clientType = url.searchParams.get('client');
+  const clientProject = url.searchParams.get('project');
   const isExtension = clientType !== 'browser';
   
   if (isExtension) {
+    // Validate this extension matches our configured project
+    if (clientProject) {
+      const normalizedProject = clientProject.endsWith('/.gsd')
+        ? clientProject.replace(/\/\.gsd$/, '')
+        : clientProject;
+      const normalizedGsdDir = gsdDir.replace(/\/\.gsd$/, '');
+      if (normalizedProject !== normalizedGsdDir) {
+        console.log(`[squid-viz] REJECTED extension — project ${normalizedProject} != ${normalizedGsdDir}`);
+        ws.close(1008, 'Project mismatch');
+        return;
+      }
+    }
+    
     extensionClients.add(ws);
-    console.log('[squid-viz] GSD extension connected');
+    console.log(`[squid-viz] GSD extension connected from ${clientProject || 'unknown'}`);
     
     ws.on('message', (msg) => {
       try {

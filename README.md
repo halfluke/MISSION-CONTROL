@@ -6,51 +6,44 @@ A visualizer for GSD (Get Shit Done) projects — renders your milestones, slice
 
 ## Quick Start (2 minutes)
 
-**Option A: Development** (if you're developing squid-viz):
+**Step 1: Install the visualizer**
 ```bash
-# Terminal 1: Visualizer
 git clone <this-repo>
 cd <repo>
 npm install
 npm run dev    # HTTP on 5177, WebSocket on 5178
-
-# Terminal 2: Your GSD project
-gsd --extension /path/to/repo/.gsd/extensions/squid-snapshot-writer/index.js
 ```
 
-**Option B: Production** (install globally):
+**Step 2: Add the extension to each GSD project you want to visualize**
 ```bash
-# One-time setup
-git clone <this-repo>
-cd <repo>
-npm install
-npm run build
-npm link
-
-# Copy extension to global GSD (works for ALL your GSD projects on this machine)
-cp -r .gsd/extensions/squid-snapshot-writer ~/.gsd/extensions/
-
-# Add to ~/.zshrc
-alias gsd-squid='gsd --extension ~/.gsd/extensions/squid-snapshot-writer/index.js'
-source ~/.zshrc
+# Copy the extension into the target project's .gsd/extensions/ directory
+# This creates .gsd/extensions/squid-snapshot-writer/ in the target project
+cp -r .gsd/extensions/squid-snapshot-writer /path/to/other-project/.gsd/extensions/
 ```
 
-### To visualize a project:
+**Step 3: Visualize that project**
 
-You need **two terminals**. Each terminal does a different thing:
-
-**Terminal 1 — Start the UI server** (point it at the project you want to see):
+Either `cd` into the project first:
 ```bash
-squid-viz --gsd-dir /home/user/your-gsd-project
+cd /path/to/other-project
+
+# Terminal 1: Start the visualizer (auto-discovers this project's .gsd/)
+squid-viz
+
+# Terminal 2: Start GSD with the extension (from the same project)
+gsd --extension .gsd/extensions/squid-snapshot-writer/index.js
 ```
 
-**Terminal 2 — Start the data push** (MUST be in the same project directory):
+Or use `--gsd-dir` to specify the project without `cd`:
 ```bash
-cd /home/user/your-gsd-project    # ← this is the project whose data you want
-gsd-squid                          # ← this pushes data from THIS project
+squid-viz --gsd-dir /path/to/other-project
+
+# Then in another terminal (from the target project):
+cd /path/to/other-project
+gsd --extension .gsd/extensions/squid-snapshot-writer/index.js
 ```
 
-> ⚠️ **Both terminals must target the same project.** The `--gsd-dir` flag in Terminal 1 tells `squid-viz` which project to display. The `cd` in Terminal 2 tells `gsd-squid` which project to pull data from. If they don't match, you'll see a different project than expected.
+> ⚠️ **Project matching.** `squid-viz` auto-discovers `.gsd/` from `process.cwd()` (or `--gsd-dir`). The extension also uses `process.cwd()`. The extension announces which project it's from on connect, and `squid-viz` rejects extensions that don't match its configured project.
 
 ## How It Works
 

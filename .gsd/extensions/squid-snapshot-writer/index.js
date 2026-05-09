@@ -49,7 +49,7 @@ async function takeSnapshot() {
 
 function connectWebSocket() {
   if (ws) {
-    ws.close()
+    try { ws.close() } catch {}
   }
 
   try {
@@ -59,26 +59,29 @@ function connectWebSocket() {
 
     ws.on('open', () => {
       reconnectDelay = 1000
-      if (!hasConnected) {
-        console.log('[squid-snapshot-writer] connected to squid-viz')
-        hasConnected = true
+      hasConnected = true
+      // Send data immediately on (re)connect — critical for race with browser
+      takeSnapshot()
+    })
+
+    ws.on('message', (msg) => {
+      // squid-viz sends 'browser-connected' when a new browser client arrives.
+      // This is our signal to push a fresh snapshot so the browser doesn't wait.
+      const text = msg.toString().trim()
+      if (text === 'browser-connected') {
+        takeSnapshot()
       }
-      takeSnapshot() // Send initial data
     })
 
     ws.on('close', () => {
-      if (hasConnected) {
-        console.log('[squid-snapshot-writer] disconnected from squid-viz')
-        hasConnected = false
-      }
+      hasConnected = false
       scheduleReconnect()
     })
 
-    ws.on('error', (err) => {
-      console.log('[squid-snapshot-writer] WebSocket error:', err.message)
+    ws.on('error', () => {
+      // error fires before close — cleanup handled in close handler
     })
   } catch (err) {
-    console.log('[squid-snapshot-writer] could not connect to squid-viz:', err.message)
     scheduleReconnect()
   }
 }
@@ -87,7 +90,6 @@ function scheduleReconnect() {
   if (reconnectTimeout) clearTimeout(reconnectTimeout)
   reconnectTimeout = setTimeout(() => {
     reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY)
-    console.log(`[squid-snapshot-writer] reconnecting in ${reconnectDelay}ms`)
     connectWebSocket()
   }, reconnectDelay)
 }

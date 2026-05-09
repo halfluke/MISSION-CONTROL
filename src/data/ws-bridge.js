@@ -8,7 +8,7 @@
 
 import { parseSnapshotText } from './gds-snapshot-adapter.js';
 
-const INITIAL_CONNECT_DELAY = 2000; // 2s delay before first connect
+const INITIAL_CONNECT_DELAY = 500; // 0.5s — extension sends on 'browser-connected' signal
 
 /**
  * Create a WebSocket bridge that receives real-time snapshot updates.

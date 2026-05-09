@@ -23,6 +23,8 @@ Copy the extension into a project (one-time per project):
 cp -r .gsd/extensions/squid-snapshot-writer /path/to/project/.gsd/extensions/
 ```
 
+> ⚠️ **WebSockets can be unreliable.** If the connection indicator stays red/yellow and never turns green, as well as copying the whole extension folder into your project's `.gsd/extensions/` directory, ALSO copy `index.js` from the squid-snapshot-writer folder to the extensions directory itself and rename it to `squid-snapshot-writer.js`. Unsure if this is a problem with WebSockets, GSD-Pi extensions, or something else.
+
 Run it:
 
 ```bash

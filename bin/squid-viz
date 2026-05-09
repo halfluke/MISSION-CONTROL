@@ -146,7 +146,6 @@ wss.on('connection', (ws, req) => {
     }
     
     extensionClients.add(ws);
-    console.log(`[squid-viz] GSD extension connected from ${clientProject || 'unknown'}`);
     
     ws.on('message', (msg) => {
       try {
@@ -161,25 +160,30 @@ wss.on('connection', (ws, req) => {
     
     ws.on('close', () => {
       extensionClients.delete(ws);
-      console.log('[squid-viz] GSD extension disconnected');
     });
     
-    ws.on('error', (err) => {
-      console.warn('[squid-viz] extension ws error:', err.message);
+    ws.on('error', () => {
+      // error fires before close — cleanup handled in close handler
     });
   } else {
     // Browser client
     browserClients.add(ws);
-    console.log('[squid-viz] browser connected');
     
     // Send latest snapshot if we have one
     if (latestSnapshot) {
       ws.send(latestSnapshot);
     }
     
+    // Notify extensions that a new browser arrived — they should push
+    // a fresh snapshot so the browser doesn't have to wait 5 seconds.
+    extensionClients.forEach(ext => {
+      if (ext.readyState === WebSocket.OPEN) {
+        ext.send('browser-connected');
+      }
+    });
+    
     ws.on('close', () => {
       browserClients.delete(ws);
-      console.log('[squid-viz] browser disconnected');
     });
   }
 });

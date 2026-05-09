@@ -8,7 +8,8 @@
  * @returns {void}
  */
 
-import { join, dirname, homedir } from 'node:path'
+import { join, dirname } from 'node:path'
+import { homedir } from 'node:os'
 import { WebSocket } from 'ws'
 
 const projectRoot = process.cwd()

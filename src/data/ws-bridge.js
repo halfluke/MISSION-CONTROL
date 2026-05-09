@@ -54,8 +54,8 @@ export function createWsBridge(url, onUpdate, onDisconnect) {
       };
 
       ws.onerror = () => {
-        // error event fires before close — don't log separately,
-        // the connection failure will be caught by onclose/onerror below.
+        // error fires before close — don't log separately;
+        // the failure is caught by onclose below.
       };
     } catch (err) {
       console.error('[ws-bridge] connection failed:', err.message);

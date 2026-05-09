@@ -104,7 +104,12 @@ function activatePolling() {
     new URL('/.gsd/squid-state/snapshot.json', location.origin).pathname,
     onSnapshotUpdate,
     {
-      onMissing: () => {},
+      onMissing: () => {
+        // Snapshot file doesn't exist yet — normal during dev before GSD writes it
+        if (!isLiveData) {
+          label.textContent = 'Waiting for GSD snapshot...';
+        }
+      },
       onError: showErrorOverlay,
     }
   );
@@ -142,7 +147,6 @@ wsBridge = createWsBridge(WS_URL, onWsData, onWsDisconnect);
 setTimeout(() => {
   if (!wsBridge.isConnected()) {
     activatePolling();
-    updateStatusIndicator('disconnected');
   }
 }, 2000);
 
@@ -222,6 +226,7 @@ function showDetail(nodeData) {
         <div class="panel-label">Model</div>
         <div class="panel-model">${nodeData.model}</div>
       </div>` : ''}
+
       ${nodeData.estimate ? `<div class="panel-field">
         <div class="panel-label">Estimate</div>
         <div class="panel-value">${nodeData.estimate}</div>
@@ -297,7 +302,7 @@ function showDetail(nodeData) {
   });
 }
 
-// Start scene
+// Start scene — render loop runs immediately but stays empty until live data arrives
 scene.start();
 
 // Layout toggle — keyboard shortcut (works without canvas focus)

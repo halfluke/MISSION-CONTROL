@@ -62,6 +62,16 @@ export function parseSnapshot(snapshot) {
     const timestamps = [];
     const nodeIds = new Set();
 
+    // ── Build model map from units ledger ───────────────────────────────
+    // units array has {id: "M001/S01/T01", model: "claude-opus-4-0"}
+    const modelMap = new Map();
+    for (const unit of (snapshot.units || [])) {
+      if (unit && unit.id && unit.model) {
+        // Keep the most recent model for each unit (units are sorted by startedAt)
+        modelMap.set(unit.id, unit.model);
+      }
+    }
+
     // ── 1. Process milestones ───────────────────────────────────────────
     for (const ms of (snapshot.milestones || [])) {
       try {
@@ -109,6 +119,10 @@ export function parseSnapshot(snapshot) {
 
                 const tStatus = mapTaskStatus(t.done, t.active);
 
+                // Map unit ID (e.g. "M001/S01/T01") → task ID (e.g. "tk-M001-S01-T01")
+                const unitId = `${ms.id}/${sl.id}/${t.id}`;
+                const unitModel = modelMap.get(unitId);
+
                 /** @type {SquidNodeData} */
                 const taskNode = {
                   id: tId,
@@ -118,6 +132,7 @@ export function parseSnapshot(snapshot) {
                   parentId: slId,
                   estimate: t.estimate,
                   currentAction: t.done ? 'Complete' : t.active ? 'Running' : 'Pending',
+                  model: unitModel,
                 };
                 nodes.push(taskNode);
                 connections.push({ from: slId, to: tId, status: tStatus === 'active' ? 'active' : 'idle' });
@@ -126,10 +141,14 @@ export function parseSnapshot(snapshot) {
               }
             }
 
+            // If title equals id, the slice has no proper title — just show the id
+            const slDisplayTitle = (sl.title && sl.title !== sl.id) ? sl.title : sl.id;
+            const slDisplayName = (sl.title && sl.title !== sl.id) ? `${sl.id}: ${sl.title}` : slDisplayTitle;
+
             /** @type {SquidNodeData} */
             const slNode = {
               id: slId,
-              name: `${sl.id || '?'}: ${sl.title || 'Untitled'}`,
+              name: slDisplayName,
               type: NODE_TYPE.SLICE,
               status: slStatus,
               parentId: msId,

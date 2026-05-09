@@ -8,6 +8,10 @@ import { STATUS_COLORS, NODE_TYPE, TYPE_COLORS } from './data-model.js';
 
 // ── Size configs per node type (bigger squids) ───────────────────────────────
 
+// Max characters for node names on canvas — 30 chars is a practical middle
+// between readability and preventing text overlap between nodes
+const NAME_TRUNCATE = 30;
+
 export const SIZE_CONFIGS = {
   [NODE_TYPE.MILESTONE]: { rx: 60, ry: 45, nameFont: 'bold 15px', badgeFont: '12px' },
   [NODE_TYPE.SLICE]:     { rx: 44, ry: 33, nameFont: 'bold 14px', badgeFont: '11px' },
@@ -296,40 +300,23 @@ export class SquidNode {
   }
 
   /**
-   * Draw name above and model badge below the squid.
+   * Draw name above the squid.
    * Uses LOCAL coordinates (relative to squid origin).
    */
   _drawLabels(ctx, color, rx, ry) {
     const config = this.config;
 
-    // Node name
+    // Node name (truncated to prevent canvas clutter)
+    const displayName = this._shortenName(this.data.name);
+
     ctx.save();
     ctx.fillStyle = '#e4e4e7';
     ctx.font = config.nameFont + ' system-ui, -apple-system, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
     const nameOffsetY = -(ry + 8);
-    ctx.fillText(this.data.name, 0, nameOffsetY);
+    ctx.fillText(displayName, 0, nameOffsetY);
     ctx.restore();
-
-    // Model badge
-    if (this.data.model) {
-      const badgeText = this._shortenModel(this.data.model);
-      ctx.save();
-      ctx.font = config.badgeFont + ' system-ui, -apple-system, sans-serif';
-      const badgeWidth = ctx.measureText(badgeText).width + 12;
-      const badgeY = ry + 10;
-
-      ctx.fillStyle = this._hexToRgba(color, 0.2);
-      this._roundRect(ctx, -badgeWidth / 2, badgeY, badgeWidth, 16, 4);
-      ctx.fill();
-
-      ctx.fillStyle = color;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(badgeText, 0, badgeY + 8);
-      ctx.restore();
-    }
 
     // Type-specific labels (only for milestones showing slice count)
     if (this.data.type === NODE_TYPE.MILESTONE) {
@@ -338,7 +325,7 @@ export class SquidNode {
       ctx.font = '10px system-ui, -apple-system, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const labelY = ry + 28;
+      const labelY = ry + 18;
       const label = `${this.data.slicesDone ?? 0}/${this.data.slicesTotal ?? 0} slices`;
       if (label) ctx.fillText(label, 0, labelY);
       ctx.restore();
@@ -390,6 +377,13 @@ export class SquidNode {
     const parts = model.split('/');
     const name = parts[parts.length - 1] || model;
     return name.length > 18 ? name.slice(0, 16) + '...' : name;
+  }
+
+  _shortenName(name, maxChars) {
+    if (!name) return '';
+    maxChars = maxChars || NAME_TRUNCATE;
+    if (name.length <= maxChars) return name;
+    return name.slice(0, maxChars - 1) + '…';
   }
 
   _hexToRgba(hex, alpha) {

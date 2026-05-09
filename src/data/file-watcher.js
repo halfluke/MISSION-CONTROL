@@ -35,7 +35,7 @@ export function watchSnapshotFile(fileUrl, onUpdate, opts = {}) {
     if (destroyed) return;
 
     try {
-      const res = await fetch(fileUrl);
+      const res = await fetch(fileUrl + '?_=' + Date.now(), { cache: 'no-cache' });
 
       if (res.status === 404) {
         onMissing();

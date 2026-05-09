@@ -2,6 +2,8 @@
 
 A visualizer for GSD (Get Shit Done) projects — renders your milestones, slices, and tasks as an organic squid visualization on an HTML5 Canvas.
 
+![Squid-Map demo](docs/squid-viz-demo.gif)
+
 ## Quick Start (2 minutes)
 
 **Option A: Development** (if you're developing squid-viz):

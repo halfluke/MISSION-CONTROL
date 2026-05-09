@@ -43,7 +43,7 @@ cd /path/to/other-project
 gsd --extension .gsd/extensions/squid-snapshot-writer/index.js
 ```
 
-> ⚠️ **Project matching.** `squid-viz` auto-discovers `.gsd/` from `process.cwd()` (or `--gsd-dir`). The extension also uses `process.cwd()`. The extension announces which project it's from on connect, and `squid-viz` rejects extensions that don't match its configured project.
+> ⚠️ **Pointing at a project.** `squid-viz` looks for `.gsd/` in your current working directory. If your project is elsewhere, either `cd` into it first or use `--gsd-dir /path/to/your-project`.
 
 ## How It Works
 

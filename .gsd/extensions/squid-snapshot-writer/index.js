@@ -25,6 +25,8 @@ let reconnectDelay = 1000
 const MAX_RECONNECT_DELAY = 8000
 const execFileAsync = promisify(execFile)
 let snapshotInFlight = false
+let hasConnected = false     // ever successfully opened
+let warnedNoServer = false   // suppress repeated "not reachable" logs
 
 // In-memory task cache: { "M001/S01": [{ id, title, done, active }] }
 // Populated as slices go active, persisted to disk when they complete.
@@ -189,6 +191,13 @@ function connectWebSocket() {
 
     ws.on('open', () => {
       reconnectDelay = 1000
+      if (!hasConnected) {
+        console.log('[squid-snapshot-writer] connected to squid-viz')
+      } else {
+        console.log('[squid-snapshot-writer] reconnected to squid-viz')
+      }
+      hasConnected = true
+      warnedNoServer = false
       // Send data immediately on (re)connect — critical for race with browser
       takeSnapshot()
     })
@@ -203,6 +212,14 @@ function connectWebSocket() {
     })
 
     ws.on('close', () => {
+      if (!warnedNoServer) {
+        if (hasConnected) {
+          console.log('[squid-snapshot-writer] disconnected from squid-viz — retrying in background...')
+        } else {
+          console.log('[squid-snapshot-writer] squid-viz not reachable — retrying in background...')
+        }
+        warnedNoServer = true
+      }
       scheduleReconnect()
     })
 

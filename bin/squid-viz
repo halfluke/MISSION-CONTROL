@@ -195,6 +195,15 @@ const wss = new WebSocketServer({ port: opts.wsPort, host: '127.0.0.1' });
 const extensionClients = new Set();
 const browserClients = new Set();
 let latestSnapshot = null;
+let hasLoggedFirstData = false;
+
+// Warn once if no snapshot arrives within 10s of startup
+const noDataTimer = setTimeout(() => {
+  if (!latestSnapshot) {
+    console.warn('[squid-viz] No data received yet — is the GSD extension running for this project?');
+    console.warn(`[squid-viz]   Expected project: ${gsdDir.replace(/\/\.gsd$/, '')}`);
+  }
+}, 10_000);
 
 // ── Heartbeat — detect and cull silently dead connections ───────────────────
 // Without this, a TCP connection that dies quietly (router timeout, OS idle
@@ -220,6 +229,11 @@ function broadcastToBrowsers(data) {
 
 // Handle messages from GSD extension
 function handleExtensionMessage(data) {
+  if (!hasLoggedFirstData) {
+    hasLoggedFirstData = true;
+    clearTimeout(noDataTimer);
+    console.log(`[squid-viz] Receiving data from extension for: ${gsdDir.replace(/\/\.gsd$/, '')}`);
+  }
   try {
     const merged = mergeTaskCache(JSON.parse(data))
     const mergedStr = JSON.stringify(merged)

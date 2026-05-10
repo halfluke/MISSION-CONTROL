@@ -223,8 +223,13 @@ function connectWebSocket() {
       scheduleReconnect()
     })
 
-    ws.on('error', () => {
-      // error fires before close — cleanup handled in close handler
+    ws.on('error', (err) => {
+      // Log once if this is the first sign of trouble — close will follow
+      // but terminate() from the server can fire error without a clean close
+      if (!warnedNoServer) {
+        console.log('[squid-snapshot-writer] connection error:', err.code || err.message)
+        warnedNoServer = true
+      }
     })
   } catch (err) {
     scheduleReconnect()

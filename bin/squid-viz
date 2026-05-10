@@ -293,6 +293,7 @@ wss.on('connection', (ws, req) => {
 
     ws.on('close', () => {
       extensionClients.delete(ws);
+      console.log(`[squid-viz] Extension disconnected — no longer receiving data`);
     });
 
     ws.on('error', () => {

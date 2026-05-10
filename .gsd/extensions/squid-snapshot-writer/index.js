@@ -224,10 +224,14 @@ function connectWebSocket() {
     })
 
     ws.on('error', (err) => {
-      // Log once if this is the first sign of trouble — close will follow
-      // but terminate() from the server can fire error without a clean close
+      // Log once — close will follow, but terminate() from the server can
+      // fire error without a clean close frame so we must handle it here too.
       if (!warnedNoServer) {
-        console.log('[squid-snapshot-writer] connection error:', err.code || err.message)
+        if (hasConnected) {
+          console.log('[squid-snapshot-writer] disconnected from squid-viz — retrying in background...')
+        } else {
+          console.log('[squid-snapshot-writer] squid-viz not reachable — retrying in background...')
+        }
         warnedNoServer = true
       }
     })

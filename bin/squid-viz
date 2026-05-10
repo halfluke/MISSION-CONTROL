@@ -65,6 +65,48 @@ if (!gsdDir) {
 }
 console.log(`.gsd/ found at: ${gsdDir}`);
 
+// ── Task cache — merged into snapshots so completed tasks stay visible ────────
+
+// gsdDir is the project root when --gsd-dir is used, or <project>/.gsd when
+// auto-discovered — normalize so TASK_CACHE_FILE always lives inside .gsd/
+const gsdSubdir = gsdDir.endsWith('/.gsd') ? gsdDir : join(gsdDir, '.gsd')
+const TASK_CACHE_FILE = join(gsdSubdir, 'squid-viz-task-cache.json')
+
+/**
+ * Read the task cache from disk on each call (file is small — a few KB at most).
+ * Re-reading on every snapshot means we always have the latest without polling.
+ * Returns {} if the file doesn't exist or is unreadable.
+ */
+function readTaskCache() {
+  try {
+    return JSON.parse(readFileSync(TASK_CACHE_FILE, 'utf-8'))
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Merge cached task lists into slices that are done but have an empty tasks array.
+ * Operates on an already-parsed snapshot object (mutates in place).
+ */
+function mergeTaskCache(snapshot) {
+  if (!snapshot.milestones) return snapshot
+  const cache = readTaskCache()
+  if (Object.keys(cache).length === 0) return snapshot
+  for (const milestone of snapshot.milestones) {
+    if (!milestone.slices) continue
+    for (const slice of milestone.slices) {
+      if (slice.done && (!slice.tasks || slice.tasks.length === 0)) {
+        const cached = cache[`${milestone.id}/${slice.id}`]
+        if (cached && cached.length > 0) {
+          slice.tasks = cached.map(t => ({ ...t, done: true, active: false }))
+        }
+      }
+    }
+  }
+  return snapshot
+}
+
 // ── HTTP server ──────────────────────────────────────────────────────────────
 
 const MIME = {
@@ -100,12 +142,25 @@ const server = createServer((req, res) => {
 
 // ── WebSocket server (dual purpose) ─────────────────────────────────────────
 
-const wss = new WebSocketServer({ port: opts.wsPort });
+const wss = new WebSocketServer({ port: opts.wsPort, host: '127.0.0.1' });
 
 // Track connected clients
 const extensionClients = new Set();
 const browserClients = new Set();
 let latestSnapshot = null;
+
+// ── Heartbeat — detect and cull silently dead connections ───────────────────
+// Without this, a TCP connection that dies quietly (router timeout, OS idle
+// kill) stays in extensionClients/browserClients with readyState === OPEN
+// forever, causing the browser to show stale data with no indication of error.
+const HEARTBEAT_INTERVAL = 30_000
+setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (!ws.isAlive) { ws.terminate(); return; }
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, HEARTBEAT_INTERVAL);
 
 // Broadcast to all browser clients
 function broadcastToBrowsers(data) {
@@ -118,9 +173,16 @@ function broadcastToBrowsers(data) {
 
 // Handle messages from GSD extension
 function handleExtensionMessage(data) {
-  latestSnapshot = data;
-  // Broadcast to all connected browsers immediately
-  broadcastToBrowsers(data);
+  try {
+    const merged = mergeTaskCache(JSON.parse(data))
+    const mergedStr = JSON.stringify(merged)
+    latestSnapshot = mergedStr
+    broadcastToBrowsers(mergedStr)
+  } catch {
+    // If merge fails for any reason, fall back to raw data
+    latestSnapshot = data
+    broadcastToBrowsers(data)
+  }
 }
 
 // Track connected extension (GSD)
@@ -144,36 +206,45 @@ wss.on('connection', (ws, req) => {
         return;
       }
     }
-    
+
     extensionClients.add(ws);
-    
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; });
+
+    // If browsers are already waiting with no snapshot yet, ask the extension
+    // to push immediately rather than waiting for its 5-second poll.
+    if (browserClients.size > 0 && !latestSnapshot) {
+      ws.send('browser-connected');
+    }
+
     ws.on('message', (msg) => {
+      const data = msg.toString();
       try {
-        const data = msg.toString();
-        // Validate it's valid JSON
-        JSON.parse(data);
+        JSON.parse(data); // validate before broadcasting
         handleExtensionMessage(data);
       } catch (e) {
-        console.warn('[squid-viz] invalid message from extension:', e.message);
+        console.warn('[squid-viz] invalid message from extension (not valid JSON), dropping');
       }
     });
-    
+
     ws.on('close', () => {
       extensionClients.delete(ws);
     });
-    
+
     ws.on('error', () => {
       // error fires before close — cleanup handled in close handler
     });
   } else {
     // Browser client
     browserClients.add(ws);
-    
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; });
+
     // Send latest snapshot if we have one
     if (latestSnapshot) {
       ws.send(latestSnapshot);
     }
-    
+
     // Notify extensions that a new browser arrived — they should push
     // a fresh snapshot so the browser doesn't have to wait 5 seconds.
     extensionClients.forEach(ext => {
@@ -181,9 +252,13 @@ wss.on('connection', (ws, req) => {
         ext.send('browser-connected');
       }
     });
-    
+
     ws.on('close', () => {
       browserClients.delete(ws);
+    });
+
+    ws.on('error', () => {
+      // error fires before close — cleanup handled in close handler
     });
   }
 });
@@ -192,7 +267,23 @@ wss.on('listening', () => {
   console.log(`WebSocket server running at ws://127.0.0.1:${opts.wsPort}`);
 });
 
+wss.on('error', (err) => {
+  console.error(`\nError: WebSocket server could not start on port ${opts.wsPort}`);
+  console.error(err.code === 'EADDRINUSE'
+    ? `  Port ${opts.wsPort} is already in use. Try: squid-viz --ws-port <other-port>`
+    : `  ${err.message}`);
+  process.exit(1);
+});
+
 // ── Start HTTP server ───────────────────────────────────────────────────────
+
+server.on('error', (err) => {
+  console.error(`\nError: HTTP server could not start on port ${opts.port}`);
+  console.error(err.code === 'EADDRINUSE'
+    ? `  Port ${opts.port} is already in use. Try: squid-viz --port <other-port>`
+    : `  ${err.message}`);
+  process.exit(1);
+});
 
 server.listen(opts.port, '127.0.0.1', () => {
   console.log(`squid-viz running at http://127.0.0.1:${opts.port}`);

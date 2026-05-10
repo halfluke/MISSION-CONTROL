@@ -23,8 +23,6 @@ Copy the extension into a project (one-time per project):
 cp -r .gsd/extensions/squid-snapshot-writer /path/to/project/.gsd/extensions/
 ```
 
-> ⚠️ **WebSockets can be unreliable.** If the connection indicator stays red/yellow and never turns green, as well as copying the whole extension folder into your project's `.gsd/extensions/` directory, ALSO copy `index.js` from the squid-snapshot-writer folder to the extensions directory itself and rename it to `squid-snapshot-writer.js`. Unsure if this is a problem with WebSockets, GSD-Pi extensions, or something else.
-
 Run it:
 
 ```bash
@@ -39,6 +37,21 @@ squid-viz --gsd-dir /path/to/project
 ```
 
 > ⚠️ `squid-viz` looks for `.gsd/` in your current directory (or the `--gsd-dir` path).
+
+## Preview a project without GSD running
+
+`squid-preview` loads a snapshot directly from the project's `.gsd/` database and opens it in the browser — no GSD process needed. Useful for inspecting a project's current state at any time.
+
+```bash
+# preview a specific project
+squid-preview /path/to/project
+
+# preview the current directory
+cd /path/to/project
+squid-preview
+```
+
+Close the browser tab when done — squid-viz shuts down automatically.
 
 ## CLI Options
 
@@ -69,7 +82,8 @@ squid-viz --gsd-dir /path/to/project  # Specify project from anywhere
 
 | Path | Purpose |
 |------|---------|
-| `bin/squid-viz` | CLI with WebSocket server |
+| `bin/squid-viz` | CLI — WebSocket server + HTTP static server |
+| `bin/squid-preview` | CLI — preview any project without GSD running |
 | `vite.config.js` | Dev server + WebSocket plugin |
 | `src/main.js` | Canvas + WebSocket client |
 | `src/render/` | SquidNode, Tentacle, Scene |

@@ -4,7 +4,8 @@
   "description": "Live GSD project visualizer — serves a pre-built static UI that watches .gsd/squid-state/snapshot.json",
   "type": "module",
   "bin": {
-    "squid-viz": "./bin/squid-viz"
+    "squid-viz": "./bin/squid-viz",
+    "squid-preview": "./bin/squid-preview"
   },
   "scripts": {
     "dev": "vite",

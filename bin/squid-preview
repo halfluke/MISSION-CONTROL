@@ -1,0 +1,88 @@
+#!/usr/bin/env node
+/**
+ * squid-preview — preview any GSD project in squid-viz without GSD running.
+ *
+ * Usage:
+ *   squid-preview                  # previews the current directory
+ *   squid-preview /path/to/project # previews the given project
+ */
+
+import { spawn } from 'node:child_process'
+import { WebSocket } from 'ws'
+import { setTimeout as sleep } from 'node:timers/promises'
+import { chromium } from 'playwright'
+import { join, resolve } from 'node:path'
+import { homedir } from 'node:os'
+
+const PROJECT    = resolve(process.argv[2] ?? process.cwd())
+const WS_PORT    = 5178
+const HTTP_PORT  = 5177
+const WS_URL     = `ws://127.0.0.1:${WS_PORT}`
+const PAGE_URL   = `http://127.0.0.1:${HTTP_PORT}`
+
+console.log(`\n  Project: ${PROJECT}`)
+
+function startSquidViz() {
+  const proc = spawn('squid-viz', [
+    '--no-open',
+    '--port', String(HTTP_PORT),
+    '--ws-port', String(WS_PORT),
+    '--gsd-dir', PROJECT,
+  ], { stdio: ['ignore', 'pipe', 'pipe'] })
+
+  return new Promise((resolve, reject) => {
+    proc.stdout.on('data', (d) => {
+      if (d.toString().includes('WebSocket server running')) resolve(proc)
+    })
+    proc.stderr.on('data', (d) => {
+      if (d.toString().includes('Error:')) reject(new Error(d.toString().trim()))
+    })
+    proc.on('error', reject)
+    setTimeout(() => reject(new Error('squid-viz did not start')), 5000)
+  })
+}
+
+async function loadData() {
+  const homeDir = homedir()
+  const base    = join(homeDir, '.gsd', 'agent', 'extensions', 'gsd')
+  const { isDbAvailable, openDatabase } = await import(`file://${join(base, 'gsd-db.js')}`)
+  if (!isDbAvailable()) {
+    try { openDatabase(join(PROJECT, '.gsd', 'gsd.db')) } catch {}
+  }
+  const { loadVisualizerData } = await import(`file://${join(base, 'visualizer-data.js')}`)
+  return loadVisualizerData(PROJECT)
+}
+
+console.log('  Starting squid-viz...')
+const proc = await startSquidViz()
+
+console.log('  Loading project data...')
+const data = await loadData()
+console.log(`  → ${data.milestones.length} milestones`)
+for (const m of data.milestones) {
+  console.log(`    ${m.id}  ${m.status.padEnd(10)}  "${m.title}"`)
+}
+
+console.log('\n  Launching browser...')
+const browser = await chromium.launch({ headless: false })
+const page    = await browser.newPage()
+await page.setViewportSize({ width: 1400, height: 900 })
+await page.goto(PAGE_URL)
+await sleep(600)
+
+const ws = new WebSocket(`${WS_URL}?project=${encodeURIComponent(PROJECT)}`)
+await new Promise((res, rej) => { ws.on('open', res); ws.on('error', rej) })
+ws.send(JSON.stringify({ version: 1, ...data }))
+
+console.log('\n  Done — close the browser tab to exit.\n')
+
+page.on('close', async () => {
+  ws.close()
+  proc.kill('SIGINT')
+  await sleep(300)
+  process.exit(0)
+})
+
+await sleep(10 * 60 * 1000)  // safety timeout: 10 minutes
+await browser.close()
+proc.kill('SIGINT')

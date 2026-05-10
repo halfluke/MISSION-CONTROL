@@ -169,7 +169,7 @@ async function takeSnapshot() {
 
     const json = JSON.stringify(payload, null, 2)
 
-    if (ws && ws.readyState === WebSocket.OPEN) {
+    if (ws && ws.readyState === 1 /* WebSocket.OPEN */) {
       ws.send(json)
     }
   } catch (err) {

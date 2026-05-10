@@ -46,31 +46,66 @@ function resolvePath(p) {
 const opts = parseArgs(process.argv.slice(2));
 
 // ── Find .gsd/ dir ───────────────────────────────────────────────────────────
+// gsdDir always resolves to the .gsd directory itself (never the project root).
 
-const gsdDir = opts.gsdDir
-  ? resolve(opts.gsdDir)
-  : existsSync(join(process.cwd(), '.gsd'))
-    ? join(process.cwd(), '.gsd')
-    : null;
+function findGsdDir(explicitPath) {
+  const p = resolve(explicitPath);
+  // User passed the .gsd dir directly
+  if (p.endsWith('/.gsd') && existsSync(p)) return p;
+  // User passed the project root — look one level down
+  const sub = join(p, '.gsd');
+  if (existsSync(sub)) return sub;
+  return null;
+}
 
-// ── Validate .gsd/ directory exists ────────────────────────────────────────
+function isGlobalGsdDir(p) {
+  return existsSync(join(p, 'trusted-projects.json'));
+}
 
-if (!gsdDir) {
-  console.error('');
-  console.error('Error: no .gsd/ directory found in', process.cwd());
-  console.error('Run squid-viz from inside a GSD project directory, or use:');
-  console.error('  squid-viz --gsd-dir /path/to/your-gsd-project');
-  console.error('');
-  process.exit(1);
+let gsdDir;
+if (opts.gsdDir) {
+  gsdDir = findGsdDir(opts.gsdDir);
+  if (!gsdDir) {
+    console.error('');
+    console.error('Error: no .gsd/ directory found in', resolve(opts.gsdDir));
+    console.error('The path must be a GSD project directory that contains a .gsd/ folder.');
+    console.error('');
+    process.exit(1);
+  }
+  if (isGlobalGsdDir(gsdDir)) {
+    console.error('');
+    console.error('Error:', gsdDir, 'is the global GSD installation, not a project.');
+    console.error('Run squid-viz from inside a GSD project directory, or use:');
+    console.error('  squid-viz --gsd-dir /path/to/your-gsd-project');
+    console.error('');
+    process.exit(1);
+  }
+} else {
+  const candidate = join(process.cwd(), '.gsd');
+  if (existsSync(candidate)) {
+    if (isGlobalGsdDir(candidate)) {
+      console.error('');
+      console.error('Error:', candidate, 'is the global GSD installation, not a project.');
+      console.error('Run squid-viz from inside a GSD project directory, or use:');
+      console.error('  squid-viz --gsd-dir /path/to/your-gsd-project');
+      console.error('');
+      process.exit(1);
+    }
+    gsdDir = candidate;
+  } else {
+    console.error('');
+    console.error('Error: no .gsd/ directory found in', process.cwd());
+    console.error('Run squid-viz from inside a GSD project directory, or use:');
+    console.error('  squid-viz --gsd-dir /path/to/your-gsd-project');
+    console.error('');
+    process.exit(1);
+  }
 }
 console.log(`.gsd/ found at: ${gsdDir}`);
 
 // ── Task cache — merged into snapshots so completed tasks stay visible ────────
 
-// gsdDir is the project root when --gsd-dir is used, or <project>/.gsd when
-// auto-discovered — normalize so TASK_CACHE_FILE always lives inside .gsd/
-const gsdSubdir = gsdDir.endsWith('/.gsd') ? gsdDir : join(gsdDir, '.gsd')
-const TASK_CACHE_FILE = join(gsdSubdir, 'squid-viz-task-cache.json')
+const TASK_CACHE_FILE = join(gsdDir, 'squid-viz-task-cache.json')
 
 /**
  * Read the task cache from disk on each call (file is small — a few KB at most).
@@ -287,9 +322,6 @@ server.on('error', (err) => {
 
 server.listen(opts.port, '127.0.0.1', () => {
   console.log(`squid-viz running at http://127.0.0.1:${opts.port}`);
-  if (gsdDir) {
-    console.log(`.gsd/ found at: ${gsdDir}`);
-  }
 
   // ── Open browser ─────────────────────────────────────────────────────
   if (opts.open) {

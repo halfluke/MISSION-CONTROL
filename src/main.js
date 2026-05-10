@@ -9,6 +9,16 @@ import { Scene } from './render/Scene.js';
 import { createWsBridge } from './data/ws-bridge.js';
 import { toggleLayoutMode, LAYOUT_MODE } from './render/layout.js';
 
+function _esc(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // Hex to RGBA helper for inline panel styles
 function _hexToRgba(hex, alpha) {
   if (!hex || typeof hex !== 'string') return `rgba(107,114,128,${alpha || 1})`;
@@ -25,6 +35,7 @@ const panel = document.getElementById('detail-panel');
 const STATUS_COLORS = {
   active: '#4ade80', idle: '#60a5fa', error: '#f87171',
   waiting: '#9ca3af', completing: '#fbbf24', pending: '#6b7280',
+  complete: '#4ade80', done: '#4ade80',
 };
 
 // Connecting overlay
@@ -81,7 +92,8 @@ function onWsDisconnect() {
   }
 }
 
-const WS_URL = `ws://${window.location.hostname}:5178?client=browser`;
+const WS_PORT = window.__SQUID_WS_PORT__ || 5178;
+const WS_URL = `ws://${window.location.hostname}:${WS_PORT}?client=browser`;
 wsBridge = createWsBridge(WS_URL, onWsData, onWsDisconnect);
 updateStatusIndicator('connecting');
 
@@ -107,7 +119,7 @@ function showDetail(nodeData) {
       const statusClass = a.status === 'success' ? 'success' : a.status === 'failed' ? 'failed' : 'running';
       return `<div class="panel-action-item">
         <span class="panel-action-status ${statusClass}"></span>
-        <span>${a.description || a.type || ''}</span>
+        <span>${_esc(a.description || a.type)}</span>
       </div>`;
     }).join('');
   }
@@ -132,7 +144,7 @@ function showDetail(nodeData) {
       </div>
       ${nodeData.phase ? `<div class="panel-field">
         <div class="panel-label">Phase</div>
-        <div class="panel-value" style="text-transform:capitalize;">${nodeData.phase}</div>
+        <div class="panel-value" style="text-transform:capitalize;">${_esc(nodeData.phase)}</div>
       </div>` : ''}
     `;
   } else if (type === 'slice') {
@@ -143,7 +155,7 @@ function showDetail(nodeData) {
       </div>
       ${nodeData.currentAction ? `<div class="panel-field">
         <div class="panel-label">Action</div>
-        <div class="panel-value">${nodeData.currentAction}</div>
+        <div class="panel-value">${_esc(nodeData.currentAction)}</div>
       </div>` : ''}
       ${nodeData.children && nodeData.children.length ? `<div class="panel-field">
         <div class="panel-label">Tasks</div>
@@ -159,31 +171,30 @@ function showDetail(nodeData) {
       </div>
       ${nodeData.model ? `<div class="panel-field">
         <div class="panel-label">Model</div>
-        <div class="panel-model">${nodeData.model}</div>
+        <div class="panel-model">${_esc(nodeData.model)}</div>
       </div>` : ''}
-
       ${nodeData.estimate ? `<div class="panel-field">
         <div class="panel-label">Estimate</div>
-        <div class="panel-value">${nodeData.estimate}</div>
+        <div class="panel-value">${_esc(nodeData.estimate)}</div>
       </div>` : ''}
       ${nodeData.currentAction ? `<div class="panel-field">
         <div class="panel-label">Current Action</div>
-        <div class="panel-value">${nodeData.currentAction}</div>
+        <div class="panel-value">${_esc(nodeData.currentAction)}</div>
       </div>` : ''}
       ${nodeData.lastAction ? `<div class="panel-field">
         <div class="panel-label">Last Action</div>
-        <div class="panel-value">${nodeData.lastAction}</div>
+        <div class="panel-value">${_esc(nodeData.lastAction)}</div>
       </div>` : ''}
       ${nodeData.phase ? `<div class="panel-field">
         <div class="panel-label">Phase</div>
-        <div class="panel-value" style="text-transform:capitalize;">${nodeData.phase}</div>
+        <div class="panel-value" style="text-transform:capitalize;">${_esc(nodeData.phase)}</div>
       </div>` : ''}
     `;
   } else {
     typeFields = `
       <div class="panel-field">
         <div class="panel-label">Type</div>
-        <div class="panel-value" style="text-transform:capitalize;">${type}</div>
+        <div class="panel-value" style="text-transform:capitalize;">${_esc(type)}</div>
       </div>
     `;
   }
@@ -191,14 +202,14 @@ function showDetail(nodeData) {
   const statusField = `
     <div class="panel-field">
       <div class="panel-label">Status</div>
-      <div class="panel-value" style="color:${color};text-transform:capitalize;">${nodeData.status || 'unknown'}</div>
+      <div class="panel-value" style="color:${color};text-transform:capitalize;">${_esc(nodeData.status || 'unknown')}</div>
     </div>
   `;
 
   panel.innerHTML = `
     <div class="panel-header">
-      <span class="panel-name">${nodeData.name || 'unnamed'}</span>
-      <span class="panel-status" style="background:${_hexToRgba(color, 0.2)};color:${color};">${nodeData.status || 'unknown'}</span>
+      <span class="panel-name">${_esc(nodeData.name || 'unnamed')}</span>
+      <span class="panel-status" style="background:${_hexToRgba(color, 0.2)};color:${color};">${_esc(nodeData.status || 'unknown')}</span>
       <button class="panel-close" id="panel-close">&times;</button>
     </div>
     ${statusField}

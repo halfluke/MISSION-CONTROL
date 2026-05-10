@@ -373,12 +373,6 @@ export class SquidNode {
     return TYPE_COLORS[this.data.type] || TYPE_COLORS[NODE_TYPE.AGENT];
   }
 
-  _shortenModel(model) {
-    const parts = model.split('/');
-    const name = parts[parts.length - 1] || model;
-    return name.length > 18 ? name.slice(0, 16) + '...' : name;
-  }
-
   _shortenName(name, maxChars) {
     if (!name) return '';
     maxChars = maxChars || NAME_TRUNCATE;
@@ -403,17 +397,4 @@ export class SquidNode {
     return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
   }
 
-  _roundRect(ctx, x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
-  }
 }

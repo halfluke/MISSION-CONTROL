@@ -67,7 +67,7 @@ export function parseSnapshot(snapshot) {
     const modelMap = new Map();
     for (const unit of (snapshot.units || [])) {
       if (unit && unit.id && unit.model) {
-        // Keep the most recent model for each unit (units are sorted by startedAt)
+        // Last entry wins — source order is not guaranteed to be sorted
         modelMap.set(unit.id, unit.model);
       }
     }
@@ -172,10 +172,12 @@ export function parseSnapshot(snapshot) {
           }
         }
 
-        // Milestone dependency connections
+        // Milestone dependency connections — only emit if the dep node exists
         if (Array.isArray(ms.dependsOn)) {
           for (const depMsId of ms.dependsOn) {
-            connections.push({ from: `ms-${depMsId}`, to: msId, status: 'idle' });
+            if (nodeIds.has(`ms-${depMsId}`)) {
+              connections.push({ from: `ms-${depMsId}`, to: msId, status: 'idle' });
+            }
           }
         }
       } catch (msErr) {
@@ -208,7 +210,7 @@ export function parseSnapshot(snapshot) {
 export function parseSnapshotText(jsonText) {
   try {
     const snapshot = JSON.parse(jsonText);
-    if (!snapshot.version || !snapshot.milestones) {
+    if (snapshot.version == null || !snapshot.milestones) {
       console.warn('[snapshot-adapter] Invalid snapshot: missing version or milestones');
       return null;
     }

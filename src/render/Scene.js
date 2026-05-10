@@ -6,8 +6,7 @@
  */
 import { SquidNode } from './SquidNode.js';
 import { Tentacle } from './Tentacle.js';
-import { computeLayout, computeLayeredLayout, toggleLayoutMode, currentLayoutMode, LAYOUT_MODE } from './layout.js';
-import { NODE_TYPE } from './data-model.js';
+import { computeLayout, computeLayeredLayout, currentLayoutMode, LAYOUT_MODE } from './layout.js';
 
 const TARGET_FPS = 30;
 const FRAME_INTERVAL = 1000 / TARGET_FPS;
@@ -97,8 +96,8 @@ export class Scene {
    * @param {Object} newData - Updated SceneData
    */
   update(newData) {
+    if (!Array.isArray(newData?.nodes)) return;
     this.data = newData;
-    this.selectedNodeId = null;
 
     // Build sets of IDs from both old and new data
     const oldIds = new Set(this.nodes.keys());
@@ -140,6 +139,14 @@ export class Scene {
       // Same nodes — update in-place so animation stays smooth
       this._updateInstances(newData, stableIds);
     }
+
+    // Restore selection if the selected node still exists after the update
+    if (this.selectedNodeId && !this.nodes.has(this.selectedNodeId)) {
+      this.selectedNodeId = null;
+    }
+    this.nodes.forEach((squid) => {
+      squid.state.selected = squid.data.id === this.selectedNodeId;
+    });
   }
 
   /**
@@ -408,20 +415,13 @@ export class Scene {
         // On resize, we keep the current positions - don't re-run layout.
         // The nodes stay where they are, just the canvas size changes.
         // This prevents the position jitter on every WebSocket update.
-      }, 100);
+      }, debounceMs);
     };
     this._resizeObserver = new ResizeObserver(resizeHandler);
     this._resizeObserver.observe(this.canvas.parentElement);
   }
 
   _setupInteraction() {
-    this.canvas.addEventListener('click', (e) => {
-      const rect = this.canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      this.handleClick(x, y);
-    });
-
     this.canvas.addEventListener('mousemove', (e) => {
       const rect = this.canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -464,7 +464,6 @@ export class Scene {
     this.camera.scale = newScale;
 
     console.log(`[Squid-Map] Zoom ${newScale.toFixed(2)}x`);
-    this.needsRender = true;
   }
 
   /**
@@ -494,7 +493,6 @@ export class Scene {
       const dy = e.clientY - this._panStart.y;
       this.camera.x = this._panStart.cx + dx;
       this.camera.y = this._panStart.cy + dy;
-      this.needsRender = true;
     }
   }
 

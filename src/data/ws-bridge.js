@@ -43,9 +43,9 @@ export function createWsBridge(url, onUpdate, onDisconnect) {
       ws.onmessage = (event) => {
         const sceneData = parseSnapshotText(event.data);
         if (sceneData) {
-          // Track version to detect new data
-          if (sceneData.version > lastRenderedVersion) {
-            lastRenderedVersion = sceneData.version;
+          // Track version to detect new data (_version is set by the adapter)
+          if (sceneData._version > lastRenderedVersion) {
+            lastRenderedVersion = sceneData._version;
           }
           // Always call onUpdate to force re-render with latest data
           onUpdate(sceneData);

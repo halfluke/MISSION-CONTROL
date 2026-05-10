@@ -16,17 +16,36 @@ function webSocketServer() {
       // Create separate WebSocket server on port 5178 (like CLI)
       wss = new WebSocketServer({ host: '127.0.0.1', port: 5178 });
 
+      // Heartbeat — mirrors production squid-viz behaviour
+      const HEARTBEAT_INTERVAL = 30_000;
+      const heartbeat = setInterval(() => {
+        wss.clients.forEach((ws) => {
+          if (!ws.isAlive) { ws.terminate(); return; }
+          ws.isAlive = false;
+          ws.ping();
+        });
+      }, HEARTBEAT_INTERVAL);
+
       wss.on('connection', (ws, req) => {
-        // Browser client (connects without the extension path)
-        if (!req.url.includes('extension')) {
+        // Match production: ?client=browser identifies browser clients
+        const url = new URL(req.url, 'http://localhost');
+        const isBrowser = url.searchParams.get('client') === 'browser';
+
+        ws.isAlive = true;
+        ws.on('pong', () => { ws.isAlive = true; });
+
+        if (isBrowser) {
           browserClients.add(ws);
           console.log('[dev-ws] browser connected');
-          
+
           // Send latest snapshot if available
-          if (latestSnapshot) {
-            ws.send(latestSnapshot);
-          }
-          
+          if (latestSnapshot) ws.send(latestSnapshot);
+
+          // Signal extensions to push fresh data immediately
+          extensionClients.forEach(ext => {
+            if (ext.readyState === WebSocket.OPEN) ext.send('browser-connected');
+          });
+
           ws.on('close', () => {
             browserClients.delete(ws);
             console.log('[dev-ws] browser disconnected');
@@ -35,34 +54,36 @@ function webSocketServer() {
           // Extension client
           extensionClients.add(ws);
           console.log('[dev-ws] extension connected');
-          
+
+          // If browsers already waiting, ask for an immediate push
+          if (browserClients.size > 0 && !latestSnapshot) ws.send('browser-connected');
+
           ws.on('message', (msg) => {
             try {
               const data = msg.toString();
               JSON.parse(data); // Validate
               latestSnapshot = data;
-              // Broadcast to browsers
               browserClients.forEach(client => {
-                if (client.readyState === WebSocket.OPEN) {
-                  client.send(data);
-                }
+                if (client.readyState === WebSocket.OPEN) client.send(data);
               });
             } catch (e) {}
           });
-          
+
           ws.on('close', () => {
             extensionClients.delete(ws);
             console.log('[dev-ws] extension disconnected');
           });
         }
+
+        ws.on('error', () => {});
       });
+
+      wss.on('close', () => clearInterval(heartbeat));
 
       console.log('[dev-ws] WebSocket server running at ws://127.0.0.1:5178');
     },
     closeBundle() {
-      if (wss) {
-        wss.close();
-      }
+      if (wss) wss.close();
     }
   };
 }

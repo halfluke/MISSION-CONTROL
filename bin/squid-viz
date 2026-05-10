@@ -169,7 +169,19 @@ const server = createServer((req, res) => {
   // ── Serve static files from dist/ ──────────────────────────────────────
   let url = req.url?.split('?')[0] || '/';
   if (url === '/' || url === '/index.html') {
-    serveFile(res, join(DIST, 'index.html'));
+    // Inject the WS port so the browser doesn't hard-code 5178
+    try {
+      let html = readFileSync(join(DIST, 'index.html'), 'utf-8');
+      html = html.replace(
+        '<head>',
+        `<head><script>window.__SQUID_WS_PORT__=${opts.wsPort};</script>`
+      );
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
+    } catch {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Not found');
+    }
   } else {
     serveFile(res, join(DIST, url));
   }
@@ -229,17 +241,20 @@ wss.on('connection', (ws, req) => {
   const isExtension = clientType !== 'browser';
   
   if (isExtension) {
-    // Validate this extension matches our configured project
-    if (clientProject) {
-      const normalizedProject = clientProject.endsWith('/.gsd')
-        ? clientProject.replace(/\/\.gsd$/, '')
-        : clientProject;
-      const normalizedGsdDir = gsdDir.replace(/\/\.gsd$/, '');
-      if (normalizedProject !== normalizedGsdDir) {
-        console.log(`[squid-viz] REJECTED extension — project ${normalizedProject} != ${normalizedGsdDir}`);
-        ws.close(1008, 'Project mismatch');
-        return;
-      }
+    // Require project identification — reject unidentified extensions
+    if (!clientProject) {
+      console.log(`[squid-viz] REJECTED extension — no project param`);
+      ws.close(1008, 'Missing project param');
+      return;
+    }
+    const normalizedProject = clientProject.endsWith('/.gsd')
+      ? clientProject.replace(/\/\.gsd$/, '')
+      : clientProject;
+    const normalizedGsdDir = gsdDir.replace(/\/\.gsd$/, '');
+    if (normalizedProject !== normalizedGsdDir) {
+      console.log(`[squid-viz] REJECTED extension — project ${normalizedProject} != ${normalizedGsdDir}`);
+      ws.close(1008, 'Project mismatch');
+      return;
     }
 
     extensionClients.add(ws);

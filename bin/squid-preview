@@ -31,14 +31,28 @@ function startSquidViz() {
   ], { stdio: ['ignore', 'pipe', 'pipe'] })
 
   return new Promise((resolve, reject) => {
+    let settled = false
+    const timer = setTimeout(() => {
+      if (!settled) { settled = true; reject(new Error('squid-viz did not start within 5s')) }
+    }, 5000)
+
     proc.stdout.on('data', (d) => {
-      if (d.toString().includes('WebSocket server running')) resolve(proc)
+      if (!settled && d.toString().includes('WebSocket server running')) {
+        settled = true
+        clearTimeout(timer)
+        resolve(proc)
+      }
     })
     proc.stderr.on('data', (d) => {
-      if (d.toString().includes('Error:')) reject(new Error(d.toString().trim()))
+      if (!settled && d.toString().includes('Error:')) {
+        settled = true
+        clearTimeout(timer)
+        reject(new Error(d.toString().trim()))
+      }
     })
-    proc.on('error', reject)
-    setTimeout(() => reject(new Error('squid-viz did not start')), 5000)
+    proc.on('error', (err) => {
+      if (!settled) { settled = true; clearTimeout(timer); reject(err) }
+    })
   })
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "squid-viz",
   "version": "1.0.0",
-  "description": "Live GSD project visualizer — serves a pre-built static UI that watches .gsd/squid-state/snapshot.json",
+  "description": "Live GSD project visualizer — serves a pre-built static UI with real-time WebSocket snapshot streaming",
   "type": "module",
   "bin": {
     "squid-viz": "./bin/squid-viz",

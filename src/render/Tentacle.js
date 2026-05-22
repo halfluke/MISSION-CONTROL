@@ -27,6 +27,7 @@ export class Tentacle {
 
   /**
    * Render tentacle curves between two points.
+   * For commit-order connections, renders a straight arrow instead.
    * @param {CanvasRenderingContext2D} ctx
    * @param {number} x1 - Source X
    * @param {number} y1 - Source Y
@@ -35,6 +36,12 @@ export class Tentacle {
    * @param {number} time - Animation time in seconds
    */
   render(ctx, x1, y1, x2, y2, time) {
+    // Commit-order connections: straight arrow with arrowhead
+    if (this.data.type === 'commit-order') {
+      this._renderArrow(ctx, x1, y1, x2, y2);
+      return;
+    }
+
     const color = this._color();
     const dx = x2 - x1;
     const dy = y2 - y1;
@@ -84,6 +91,61 @@ export class Tentacle {
     ctx.beginPath();
     ctx.arc(x2, y2, 2.5, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+  }
+
+  /**
+   * Render a straight arrow from (x1, y1) to (x2, y2).
+   * Stops short of the target centroid so the arrowhead doesn't overlap the squid body.
+   */
+  _renderArrow(ctx, x1, y1, x2, y2) {
+    const arrowColor = '#facc15'; // yellow to match commits
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+    // Direction unit vector
+    const ux = dx / dist;
+    const uy = dy / dist;
+
+    // Stop the line short so arrowhead sits just outside the target squid body
+    const margin = 28; // approximate commit squid radius + padding
+    const lineEndX = x2 - ux * margin;
+    const lineEndY = y2 - uy * margin;
+
+    // Arrowhead position (at the margin boundary)
+    const headX = lineEndX;
+    const headY = lineEndY;
+    const headLen = 8;
+    const headAngle = 0.45; // radians
+
+    ctx.save();
+    ctx.strokeStyle = this._hexToRgba(arrowColor, 0.6);
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = 'round';
+
+    // Draw line
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(lineEndX, lineEndY);
+    ctx.stroke();
+
+    // Draw arrowhead
+    const angle = Math.atan2(uy, ux);
+    ctx.fillStyle = this._hexToRgba(arrowColor, 0.8);
+    ctx.beginPath();
+    ctx.moveTo(headX, headY);
+    ctx.lineTo(
+      headX - headLen * Math.cos(angle - headAngle),
+      headY - headLen * Math.sin(angle - headAngle)
+    );
+    ctx.lineTo(
+      headX - headLen * Math.cos(angle + headAngle),
+      headY - headLen * Math.sin(angle + headAngle)
+    );
+    ctx.closePath();
+    ctx.fill();
+
     ctx.restore();
   }
 

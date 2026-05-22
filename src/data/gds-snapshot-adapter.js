@@ -189,19 +189,21 @@ export function parseSnapshot(snapshot) {
     if (snapshot.ts) timestamps.push(new Date(snapshot.ts).getTime());
 
     // ── 3. Process commits ─────────────────────────────────────────────
+    const commitIds = [];
     for (const commit of (snapshot.commits || [])) {
       try {
         if (!commit || typeof commit !== 'object') continue;
         const cId = `cm-${commit.hash}`;
         if (!cId || nodeIds.has(cId)) continue;
         nodeIds.add(cId);
+        commitIds.push(cId);
 
         /** @type {SquidNodeData} */
         const commitNode = {
           id: cId,
           name: commit.subject || '',
           type: NODE_TYPE.COMMIT,
-          status: 'idle',
+          status: 'committed',
           commitHash: commit.hash,
           currentAction: 'Committed',
         };
@@ -209,6 +211,16 @@ export function parseSnapshot(snapshot) {
       } catch (commitErr) {
         console.warn(`[snapshot-adapter] Skipping malformed commit:`, commitErr.message);
       }
+    }
+
+    // Wire commits in chronological order with directed connections
+    for (let i = 1; i < commitIds.length; i++) {
+      connections.push({
+        from: commitIds[i - 1],
+        to: commitIds[i],
+        status: 'idle',
+        type: 'commit-order',
+      });
     }
 
     return {

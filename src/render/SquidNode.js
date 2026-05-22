@@ -56,9 +56,13 @@ export class SquidNode {
     const { rx, ry } = this.config;
 
     // For completed nodes, use type color instead of status color
-    const isCompleted = this.data.status === 'complete' || this.data.status === 'done' || this.data.done;
+    // Commits always use their type color — they don't have a status lifecycle
+    const isCompleted = this.data.status === 'complete' || this.data.done;
     if (isCompleted) {
       bodyColor = TYPE_COLORS[this.data.type] || TYPE_COLORS[NODE_TYPE.AGENT];
+    }
+    if (this.data.type === NODE_TYPE.COMMIT) {
+      bodyColor = TYPE_COLORS[NODE_TYPE.COMMIT] || bodyColor;
     }
 
     // Determine if we should flash (running = active status)
@@ -138,6 +142,8 @@ export class SquidNode {
       statusText = 'COMPLETED';
     } else if (status === 'active') {
       statusText = 'RUNNING';
+    } else if (status === 'committed') {
+      statusText = ''; // commits show hash, not "committed" text
     } else if (status === 'pending' || status === 'idle' || status === 'waiting') {
       statusText = 'PENDING';
     }

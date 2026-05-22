@@ -17,6 +17,7 @@ export const SIZE_CONFIGS = {
   [NODE_TYPE.SLICE]:     { rx: 44, ry: 33, nameFont: 'bold 14px', badgeFont: '11px' },
   [NODE_TYPE.AGENT]:     { rx: 48, ry: 35, nameFont: 'bold 14px', badgeFont: '11px' },
   [NODE_TYPE.SUBAGENT]:  { rx: 30, ry: 22, nameFont: 'bold 12px', badgeFont: '10px' },
+  [NODE_TYPE.COMMIT]:    { rx: 24, ry: 18, nameFont: 'bold 10px', badgeFont: '9px' },
 };
 
 const DEFAULT_CONFIG = SIZE_CONFIGS[NODE_TYPE.AGENT];
@@ -110,8 +111,10 @@ export class SquidNode {
     // Draw status text inside the squid
     this._drawStatusText(ctx, rx, ry);
 
-    // Status dot (3px circle above right of body) - LOCAL coords after translate
-    this._drawStatusDot(ctx, rx, ry, isCompleted);
+    // Commits skip the status dot
+    if (this.data.type !== NODE_TYPE.COMMIT) {
+      this._drawStatusDot(ctx, rx, ry, isCompleted);
+    }
 
     // Labels - LOCAL coords after translate
     this._drawLabels(ctx, bodyColor, rx, ry);
@@ -125,19 +128,29 @@ export class SquidNode {
   _drawStatusText(ctx, rx, ry) {
     let statusText = '';
     const status = this.data.status;
-    
-    if (status === 'complete' || status === 'done' || this.data.done) {
+
+    // Commits: show the short commit hex inside the body
+    if (this.data.type === NODE_TYPE.COMMIT) {
+      statusText = this.data.commitHash || '';
+    }
+    // All other node types: show status label
+    else if (status === 'complete' || status === 'done' || this.data.done) {
       statusText = 'COMPLETED';
     } else if (status === 'active') {
       statusText = 'RUNNING';
     } else if (status === 'pending' || status === 'idle' || status === 'waiting') {
       statusText = 'PENDING';
     }
-    
+
     if (!statusText) return;
 
     ctx.save();
-    ctx.fillStyle = '#ef4444'; // red for status text
+    // Commits use dark text inside yellow body; others use red
+    if (this.data.type === NODE_TYPE.COMMIT) {
+      ctx.fillStyle = '#1a1a1a';
+    } else {
+      ctx.fillStyle = '#ef4444';
+    }
     // Use bold and a slightly larger size (0.4x instead of 0.35x)
     ctx.font = `bold ${Math.max(10, Math.floor(rx * 0.4))}px system-ui, -apple-system, sans-serif`;
     ctx.textAlign = 'center';
@@ -178,6 +191,15 @@ export class SquidNode {
       ctx.beginPath();
       ctx.ellipse(0, 0, rx + 11, ry + 11, 0, 0, Math.PI * 2);
       ctx.stroke();
+    } else if (type === NODE_TYPE.COMMIT) {
+      // Thin dashed ring to distinguish commits
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx + 5, ry + 5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
     }
     // Tasks (AGENT/SUBAGENT) get no extra border - solid body is enough
 

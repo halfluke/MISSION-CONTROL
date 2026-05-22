@@ -18,6 +18,7 @@ import { WebSocket } from 'ws'
 const projectRoot = process.cwd()
 const WS_URL = 'ws://127.0.0.1:5178?project=' + encodeURIComponent(projectRoot)
 const TASK_CACHE_PATH = join(projectRoot, '.gsd', 'squid-viz-task-cache.json')
+const COMMIT_CACHE_PATH = join(projectRoot, '.gsd', 'squid-viz-commit-cache.json')
 
 let ws = null
 let reconnectTimeout = null
@@ -28,6 +29,7 @@ let snapshotInFlight = false
 let connectionState = 'disconnected'  // 'connected' | 'disconnected' — only log on transitions
 let connectionStableTimer = null       // resets on each (dis)connect; clears after 3s of stability
 let flapCount = 0                      // counts rapid flaps; after 1, suppress logs until stable
+let cachedCommits = null               // memoized commit list; refreshed on each snapshot
 
 // In-memory task cache: { "M001/S01": [{ id, title, done, active }] }
 // Populated as slices go active, persisted to disk when they complete.
@@ -138,7 +140,45 @@ function patchTaskActiveState(data, runningTasks) {
   return data
 }
 
-async function takeSnapshot() {
+/**
+ * Fetch git log from the project repo.
+ * Returns array of { hash, subject } — most recent first, capped at 30.
+ * Caches result on disk to avoid repeated git calls.
+ */
+async function getGitCommits() {
+  try {
+    // Try cache first
+    try {
+      const cached = JSON.parse(readFileSync(COMMIT_CACHE_PATH, 'utf-8'))
+      const age = Date.now() - (cached._ts || 0)
+      if (age < 30000) return cached.commits // fresh enough (30s)
+    } catch { /* no cache */ }
+
+    const { stdout } = await execFileAsync('git', [
+      'log', '--format=%H|||%s', '-30',
+      '--', '.'
+    ], { timeout: 5000, cwd: projectRoot })
+
+    const commits = []
+    for (const line of stdout.trim().split('\n').filter(Boolean)) {
+      const sep = line.indexOf('|||')
+      if (sep === -1) continue
+      const hash = line.slice(0, sep).trim()
+      const subject = line.slice(sep + 3).trim()
+      commits.push({ hash: hash.slice(0, 7), subject })
+    }
+
+    // Persist cache
+    const payload = { _ts: Date.now(), commits }
+    try {
+      writeFileSync(COMMIT_CACHE_PATH, JSON.stringify(payload), 'utf-8')
+    } catch { /* best effort */ }
+
+    return commits
+  } catch {
+    return []
+  }
+}
   if (snapshotInFlight) return
   snapshotInFlight = true
   try {
@@ -160,6 +200,17 @@ async function takeSnapshot() {
       patchTaskActiveState(data, runningTasks)
     } catch (err) {
       console.warn('[squid-snapshot-writer] task-active patch failed:', err.message)
+    }
+
+    // Fetch commits via git log — cached per snapshot cycle
+    try {
+      if (!cachedCommits) {
+        cachedCommits = await getGitCommits()
+      }
+      data.commits = cachedCommits
+    } catch (err) {
+      console.warn('[squid-snapshot-writer] git-log fetch failed:', err.message)
+      data.commits = cachedCommits || []
     }
 
     // Update the on-disk task cache so completed tasks survive slice transitions.

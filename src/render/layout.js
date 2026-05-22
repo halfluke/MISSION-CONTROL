@@ -59,6 +59,7 @@ export function computeLayeredLayout(nodes, connections, width, height) {
     [NODE_TYPE.SLICE]: 1,
     [NODE_TYPE.AGENT]: 2,
     [NODE_TYPE.SUBAGENT]: 3,
+    [NODE_TYPE.COMMIT]: 4,
   };
 
   // Group nodes by layer

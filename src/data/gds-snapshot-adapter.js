@@ -188,6 +188,29 @@ export function parseSnapshot(snapshot) {
     if (snapshot.lastUpdate) timestamps.push(snapshot.lastUpdate);
     if (snapshot.ts) timestamps.push(new Date(snapshot.ts).getTime());
 
+    // ── 3. Process commits ─────────────────────────────────────────────
+    for (const commit of (snapshot.commits || [])) {
+      try {
+        if (!commit || typeof commit !== 'object') continue;
+        const cId = `cm-${commit.hash}`;
+        if (!cId || nodeIds.has(cId)) continue;
+        nodeIds.add(cId);
+
+        /** @type {SquidNodeData} */
+        const commitNode = {
+          id: cId,
+          name: commit.subject || '',
+          type: NODE_TYPE.COMMIT,
+          status: 'idle',
+          commitHash: commit.hash,
+          currentAction: 'Committed',
+        };
+        nodes.push(commitNode);
+      } catch (commitErr) {
+        console.warn(`[snapshot-adapter] Skipping malformed commit:`, commitErr.message);
+      }
+    }
+
     return {
       nodes,
       connections,

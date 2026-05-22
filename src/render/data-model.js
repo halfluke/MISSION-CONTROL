@@ -11,6 +11,7 @@ export const NODE_TYPE = {
   SUBAGENT: 'subagent',
   MILESTONE: 'milestone',
   SLICE: 'slice',
+  COMMIT: 'commit',
 };
 
 // Agent statuses mapped to colors
@@ -33,6 +34,7 @@ export const TYPE_COLORS = {
   [NODE_TYPE.SLICE]:     '#38bdf8', // sky blue
   [NODE_TYPE.AGENT]:     '#4ade80', // green
   [NODE_TYPE.SUBAGENT]:  '#4ade80', // green
+  [NODE_TYPE.COMMIT]:    '#facc15', // yellow
 };
 
 /**

@@ -25,8 +25,9 @@ let reconnectDelay = 1000
 const MAX_RECONNECT_DELAY = 8000
 const execFileAsync = promisify(execFile)
 let snapshotInFlight = false
-let hasConnected = false     // ever successfully opened
-let warnedNoServer = false   // suppress repeated "not reachable" logs
+let connectionState = 'disconnected'  // 'connected' | 'disconnected' — only log on transitions
+let connectionStableTimer = null       // resets on each (dis)connect; clears after 3s of stability
+let flapCount = 0                      // counts rapid flaps; after 1, suppress logs until stable
 
 // In-memory task cache: { "M001/S01": [{ id, title, done, active }] }
 // Populated as slices go active, persisted to disk when they complete.
@@ -181,9 +182,28 @@ async function takeSnapshot() {
   }
 }
 
+function logTransition(newState) {
+  if (newState === connectionState) return
+  connectionState = newState
+  console.log(
+    newState === 'connected'
+      ? '[squid-snapshot-writer] connected to squid-viz'
+      : '[squid-snapshot-writer] disconnected from squid-viz — retrying in background...'
+  )
+}
+
+function clearStableTimer() {
+  if (connectionStableTimer) { clearTimeout(connectionStableTimer); connectionStableTimer = null }
+}
+
 function connectWebSocket() {
   if (ws) {
     try { ws.close() } catch {}
+  }
+
+  // If connection is unstable, back off before logging again
+  if (flapCount > 0 && connectionState === 'disconnected') {
+    // Don't log — already reported disconnect, in retry loop
   }
 
   try {
@@ -191,20 +211,25 @@ function connectWebSocket() {
 
     ws.on('open', () => {
       reconnectDelay = 1000
-      if (!hasConnected) {
-        console.log('[squid-snapshot-writer] connected to squid-viz')
+      flapCount++
+      clearStableTimer()
+
+      // Log only on first successful connect, or after 3s of stable connection
+      if (flapCount === 1) {
+        logTransition('connected')
       } else {
-        console.log('[squid-snapshot-writer] reconnected to squid-viz')
+        // Connection established — wait 3s to confirm it stays up before logging
+        clearStableTimer()
+        connectionStableTimer = setTimeout(() => {
+          connectionStableTimer = null
+          flapCount = 0
+          logTransition('connected')
+        }, 3000)
       }
-      hasConnected = true
-      warnedNoServer = false
-      // Send data immediately on (re)connect — critical for race with browser
       takeSnapshot()
     })
 
     ws.on('message', (msg) => {
-      // squid-viz sends 'browser-connected' when a new browser client arrives.
-      // This is our signal to push a fresh snapshot so the browser doesn't wait.
       const text = msg.toString().trim()
       if (text === 'browser-connected') {
         takeSnapshot()
@@ -212,28 +237,14 @@ function connectWebSocket() {
     })
 
     ws.on('close', () => {
-      if (!warnedNoServer) {
-        if (hasConnected) {
-          console.log('[squid-snapshot-writer] disconnected from squid-viz — retrying in background...')
-        } else {
-          console.log('[squid-snapshot-writer] squid-viz not reachable — retrying in background...')
-        }
-        warnedNoServer = true
-      }
+      clearStableTimer()
+      logTransition('disconnected')
+      flapCount++
       scheduleReconnect()
     })
 
-    ws.on('error', (err) => {
-      // Log once — close will follow, but terminate() from the server can
-      // fire error without a clean close frame so we must handle it here too.
-      if (!warnedNoServer) {
-        if (hasConnected) {
-          console.log('[squid-snapshot-writer] disconnected from squid-viz — retrying in background...')
-        } else {
-          console.log('[squid-snapshot-writer] squid-viz not reachable — retrying in background...')
-        }
-        warnedNoServer = true
-      }
+    ws.on('error', () => {
+      // close follows error — log handled there
     })
   } catch (err) {
     scheduleReconnect()

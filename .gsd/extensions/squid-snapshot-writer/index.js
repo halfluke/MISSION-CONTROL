@@ -18,7 +18,6 @@ import { WebSocket } from 'ws'
 const projectRoot = process.cwd()
 const WS_URL = 'ws://127.0.0.1:5178?project=' + encodeURIComponent(projectRoot)
 const TASK_CACHE_PATH = join(projectRoot, '.gsd', 'squid-viz-task-cache.json')
-const COMMIT_CACHE_PATH = join(projectRoot, '.gsd', 'squid-viz-commit-cache.json')
 
 let ws = null
 let reconnectTimeout = null
@@ -139,10 +138,10 @@ function patchTaskActiveState(data, runningTasks) {
   return data
 }
 
+
 /**
  * Fetch git log from the project repo.
  * Returns array of { hash, subject } — most recent first, capped at 30.
- * Caches result on disk to avoid repeated git calls.
  */
 async function getGitCommits() {
   try {
@@ -165,6 +164,7 @@ async function getGitCommits() {
     return []
   }
 }
+async function takeSnapshot() {
   if (snapshotInFlight) return
   snapshotInFlight = true
   try {
@@ -289,21 +289,6 @@ function connectWebSocket() {
 function scheduleReconnect() {
   if (reconnectTimeout) clearTimeout(reconnectTimeout)
   reconnectTimeout = setTimeout(() => {
-    reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY)
-    connectWebSocket()
-  }, reconnectDelay)
-}
-
-export default function squidSnapshotWriter(pi) {
-  console.log('[squid-snapshot-writer] extension loaded')
-
-  connectWebSocket()
-
-  setInterval(() => {
-    takeSnapshot()
-  }, 5000) // Push every 5 seconds
-}
-nectTimeout = setTimeout(() => {
     reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY)
     connectWebSocket()
   }, reconnectDelay)

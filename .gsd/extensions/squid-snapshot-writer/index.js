@@ -29,7 +29,6 @@ let snapshotInFlight = false
 let connectionState = 'disconnected'  // 'connected' | 'disconnected' — only log on transitions
 let connectionStableTimer = null       // resets on each (dis)connect; clears after 3s of stability
 let flapCount = 0                      // counts rapid flaps; after 1, suppress logs until stable
-let cachedCommits = null               // memoized commit list; refreshed on each snapshot
 
 // In-memory task cache: { "M001/S01": [{ id, title, done, active }] }
 // Populated as slices go active, persisted to disk when they complete.
@@ -147,13 +146,6 @@ function patchTaskActiveState(data, runningTasks) {
  */
 async function getGitCommits() {
   try {
-    // Try cache first
-    try {
-      const cached = JSON.parse(readFileSync(COMMIT_CACHE_PATH, 'utf-8'))
-      const age = Date.now() - (cached._ts || 0)
-      if (age < 30000) return cached.commits // fresh enough (30s)
-    } catch { /* no cache */ }
-
     const { stdout } = await execFileAsync('git', [
       'log', '--format=%H|||%s', '-30',
       '--', '.'
@@ -167,12 +159,6 @@ async function getGitCommits() {
       const subject = line.slice(sep + 3).trim()
       commits.push({ hash: hash.slice(0, 7), subject })
     }
-
-    // Persist cache
-    const payload = { _ts: Date.now(), commits }
-    try {
-      writeFileSync(COMMIT_CACHE_PATH, JSON.stringify(payload), 'utf-8')
-    } catch { /* best effort */ }
 
     return commits
   } catch {
@@ -202,15 +188,13 @@ async function getGitCommits() {
       console.warn('[squid-snapshot-writer] task-active patch failed:', err.message)
     }
 
-    // Fetch commits via git log — cached per snapshot cycle
+    // Fetch commits via git log — always fresh to reflect history changes
     try {
-      if (!cachedCommits) {
-        cachedCommits = await getGitCommits()
-      }
-      data.commits = cachedCommits
+      const commits = await getGitCommits()
+      data.commits = commits
     } catch (err) {
       console.warn('[squid-snapshot-writer] git-log fetch failed:', err.message)
-      data.commits = cachedCommits || []
+      data.commits = []
     }
 
     // Update the on-disk task cache so completed tasks survive slice transitions.
@@ -305,6 +289,21 @@ function connectWebSocket() {
 function scheduleReconnect() {
   if (reconnectTimeout) clearTimeout(reconnectTimeout)
   reconnectTimeout = setTimeout(() => {
+    reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY)
+    connectWebSocket()
+  }, reconnectDelay)
+}
+
+export default function squidSnapshotWriter(pi) {
+  console.log('[squid-snapshot-writer] extension loaded')
+
+  connectWebSocket()
+
+  setInterval(() => {
+    takeSnapshot()
+  }, 5000) // Push every 5 seconds
+}
+nectTimeout = setTimeout(() => {
     reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY)
     connectWebSocket()
   }, reconnectDelay)

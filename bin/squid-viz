@@ -196,6 +196,7 @@ const extensionClients = new Set();
 const browserClients = new Set();
 let latestSnapshot = null;
 let hasLoggedFirstData = false;
+const rejectedProjects = new Set()  // track rejected project paths to suppress repeated logs
 
 // Warn once if no snapshot arrives within 10s of startup
 const noDataTimer = setTimeout(() => {
@@ -266,7 +267,10 @@ wss.on('connection', (ws, req) => {
       : clientProject;
     const normalizedGsdDir = gsdDir.replace(/\/\.gsd$/, '');
     if (normalizedProject !== normalizedGsdDir) {
-      console.log(`[squid-viz] REJECTED extension — project ${normalizedProject} != ${normalizedGsdDir}`);
+      if (!rejectedProjects.has(normalizedProject)) {
+        rejectedProjects.add(normalizedProject)
+        console.log(`[squid-viz] REJECTED extension — project ${normalizedProject} != ${normalizedGsdDir}`)
+      }
       ws.close(1008, 'Project mismatch');
       return;
     }

@@ -4,6 +4,8 @@ A visualizer for GSD (Get Shit Done) projects — renders your milestones, slice
 
 ![Squid-Map demo](docs/squid-viz-demo.gif)
 
+![Squid-Map screenshot](docs/secondscreenshot.png)
+
 ## Setup
 
 ```bash

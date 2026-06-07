@@ -4,6 +4,8 @@
  * Connects to squid-viz WebSocket server and pushes data directly.
  * WS-only — no disk fallback.
  *
+ * GSD 1.2+ loads flat .js files from .gsd/extensions/ only (not subdirs).
+ *
  * @param {ExtensionAPI} pi - The GSD extension API instance.
  * @returns {void}
  */
@@ -13,7 +15,17 @@ import { homedir } from 'node:os'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { readFileSync, writeFileSync } from 'node:fs'
-import { WebSocket } from 'ws'
+import { createRequire } from 'node:module'
+
+// Resolve ws from the project, or fall back to GSD agent's bundled copy.
+const require = createRequire(import.meta.url)
+const { WebSocket } = (() => {
+  try {
+    return require('ws')
+  } catch {
+    return require(join(homedir(), '.gsd', 'agent', 'node_modules', 'ws'))
+  }
+})()
 
 const projectRoot = process.cwd()
 const WS_URL = 'ws://127.0.0.1:5178?project=' + encodeURIComponent(projectRoot)
@@ -294,7 +306,13 @@ function scheduleReconnect() {
   }, reconnectDelay)
 }
 
+let started = false
+
 export default function squidSnapshotWriter(pi) {
+  // GSD 1.2 loads project .gsd/extensions/ twice (pi-coding-agent + ecosystem loader).
+  if (started) return
+  started = true
+
   console.log('[squid-snapshot-writer] extension loaded')
 
   connectWebSocket()

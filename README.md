@@ -11,19 +11,29 @@ A visualizer for GSD (Get Shit Done) projects — renders your milestones, slice
 ```bash
 git clone <this-repo>
 cd MISSION-CONTROL
-npm run build
-npm install -g .
+pnpm install
+pnpm run build
+pnpm add -g link:.
 ```
 
-`npm install -g .` handles dependencies and installs the CLI globally — no separate install needed.
+`pnpm add -g link:.` installs the CLI globally from this repo (live link — rebuild after UI changes).
 
 ## Use on a GSD project
 
 Copy the extension into a project (one-time per project):
 
 ```bash
-cp -r .gsd/extensions/squid-snapshot-writer /path/to/project/.gsd/extensions/
+mkdir -p /path/to/project/.gsd/extensions
+command cp -f .gsd/extensions/squid-snapshot-writer.js /path/to/project/.gsd/extensions/
 ```
+
+GSD 1.2+ only loads flat `.js` files directly in `.gsd/extensions/` (not subdirectories). The project must also be trusted — if extensions are skipped, run `pi trust` in the project, or sync your trust file:
+
+```bash
+command cp -f ~/.gsd/trusted-projects.json ~/.gsd/agent/trusted-projects.json
+```
+
+On GSD 1.2, two loaders both scan `.gsd/extensions/` (pi-coding-agent and GSD's ecosystem loader), so the extension factory can be invoked twice. The extension guards against that with a singleton — you'll see one "extension loaded" line and one WebSocket connection.
 
 Run it:
 
@@ -89,7 +99,7 @@ squid-viz --gsd-dir /path/to/project  # Specify project from anywhere
 | `vite.config.js` | Dev server + WebSocket plugin |
 | `src/main.js` | Canvas + WebSocket client |
 | `src/render/` | SquidNode, Tentacle, Scene |
-| `.gsd/extensions/squid-snapshot-writer/` | GSD extension (WebSocket client) |
+| `.gsd/extensions/squid-snapshot-writer.js` | GSD extension (WebSocket client) |
 
 ## Tech Stack
 

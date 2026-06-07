@@ -306,12 +306,13 @@ function scheduleReconnect() {
   }, reconnectDelay)
 }
 
-let started = false
+const STARTED_KEY = '__gsdSquidSnapshotWriterStarted'
 
 export default function squidSnapshotWriter(pi) {
-  // GSD 1.2 loads project .gsd/extensions/ twice (pi-coding-agent + ecosystem loader).
-  if (started) return
-  started = true
+  // GSD 1.2 loads .gsd/extensions/ via two loaders (pi jiti + ecosystem native import).
+  // Module-level state is not shared between them — or between symlink vs realpath URLs.
+  if (globalThis[STARTED_KEY]) return
+  globalThis[STARTED_KEY] = true
 
   console.log('[squid-snapshot-writer] extension loaded')
 

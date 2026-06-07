@@ -33,7 +33,7 @@ GSD 1.2+ only loads flat `.js` files directly in `.gsd/extensions/` (not subdire
 command cp -f ~/.gsd/trusted-projects.json ~/.gsd/agent/trusted-projects.json
 ```
 
-On GSD 1.2, two loaders both scan `.gsd/extensions/` (pi-coding-agent and GSD's ecosystem loader), so the extension factory can be invoked twice. The extension guards against that with a singleton — you'll see one "extension loaded" line and one WebSocket connection.
+On GSD 1.2, two loaders both scan `.gsd/extensions/` (pi-coding-agent via jiti, and GSD's ecosystem loader via native `import`), so the extension factory is invoked twice. The extension uses a `globalThis` singleton so you still get one "extension loaded" line and one WebSocket connection.
 
 Run it:
 
